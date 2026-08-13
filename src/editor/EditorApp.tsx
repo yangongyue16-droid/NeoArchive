@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { BackendApiError, openProject, saveProject, type ProjectDocument } from "../api/client";
+import { useAssetCatalog } from "../assets/catalog";
 import { useBackendHealth } from "../api/useBackendHealth";
 import { downloadProject, parseProjectFile } from "../project-schema/projectFile";
 import { findScene, getAllScenes } from "../project-schema/types";
@@ -7,6 +8,8 @@ import { StoryStage } from "../player/StoryStage";
 import { useStoryRuntime } from "../runtime/useStoryRuntime";
 import { useEditorStore } from "../state/editorStore";
 import { CueInspector } from "./CueInspector";
+import { AudioLibrary, type AudioLibraryMode } from "./AudioLibrary";
+import { VisualAssetLibrary } from "./VisualAssetLibrary";
 import { ScriptTimeline } from "./ScriptTimeline";
 
 type ThemeMode = "day" | "night";
@@ -26,6 +29,7 @@ export function EditorApp() {
   const setSceneAutoAdvance = useEditorStore((state) => state.setSceneAutoAdvance);
   const deleteScene = useEditorStore((state) => state.deleteScene);
   const addCue = useEditorStore((state) => state.addCue);
+  const addAudioCue = useEditorStore((state) => state.addAudioCue);
   const updateCue = useEditorStore((state) => state.updateCue);
   const deleteCue = useEditorStore((state) => state.deleteCue);
   const duplicateCue = useEditorStore((state) => state.duplicateCue);
@@ -36,11 +40,16 @@ export function EditorApp() {
   const undo = useEditorStore((state) => state.undo);
   const redo = useEditorStore((state) => state.redo);
   const { data: backendHealth } = useBackendHealth();
+  const { audioOptions, backgroundOptions, characterOptions, pack } = useAssetCatalog();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backendDocumentRef = useRef<Pick<ProjectDocument, "project" | "revision"> | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [projectBusy, setProjectBusy] = useState(false);
   const [workMode, setWorkMode] = useState<WorkMode>("script");
+  const [audioLibraryMode, setAudioLibraryMode] = useState<AudioLibraryMode | null>(null);
+  const [visualLibraryKind, setVisualLibraryKind] = useState<"background" | "character" | null>(
+    null,
+  );
   const [theme, setTheme] = useState<ThemeMode>(() =>
     window.localStorage.getItem("neoarchive-theme") === "day" ? "day" : "night",
   );
@@ -145,7 +154,14 @@ export function EditorApp() {
           <button disabled type="button">
             流程
           </button>
-          <button disabled type="button">
+          <button
+            onClick={() =>
+              setVisualLibraryKind(
+                selectedCue?.type === "character.enter" ? "character" : "background",
+              )
+            }
+            type="button"
+          >
             素材
           </button>
           <button disabled type="button">
@@ -229,6 +245,11 @@ export function EditorApp() {
               : backendHealth
                 ? `Python · ${backendHealth.database}`
                 : "Web 原型"}
+          </span>
+          <span className="status-pill">
+            {pack
+              ? `素材 ${pack.stats.backgrounds}/${pack.stats.characters}/${pack.stats.audio}`
+              : "素材 抽样"}
           </span>
           <button
             className="button button-primary"
@@ -337,6 +358,12 @@ export function EditorApp() {
               <button onClick={() => runtime.start(activeScene.id)} type="button">
                 播放场景
               </button>
+              <button onClick={() => setAudioLibraryMode("music")} type="button">
+                音乐库
+              </button>
+              <button onClick={() => setAudioLibraryMode("sfx")} type="button">
+                音效库
+              </button>
             </div>
           </div>
 
@@ -368,6 +395,17 @@ export function EditorApp() {
         <aside className="panel inspector" aria-label="属性面板">
           <CueInspector
             cue={selectedCue}
+            onOpenLibrary={(kind) => {
+              if (kind === "audio") {
+                setAudioLibraryMode(
+                  selectedCue?.type === "audio.play" && selectedCue.channel === "sfx"
+                    ? "sfx"
+                    : "music",
+                );
+              } else {
+                setVisualLibraryKind(kind);
+              }
+            }}
             onUpdate={(patch, field) => {
               if (selectedCue) {
                 updateCue(activeScene.id, selectedCue.id, patch, field);
@@ -376,6 +414,61 @@ export function EditorApp() {
           />
         </aside>
       </section>
+      {audioLibraryMode ? (
+        <AudioLibrary
+          mode={audioLibraryMode}
+          onClose={() => setAudioLibraryMode(null)}
+          onUse={(assetRef, channel) => {
+            if (selectedCue?.type === "audio.play") {
+              updateCue(activeScene.id, selectedCue.id, { assetRef, channel }, "audioLibrary");
+            } else {
+              addAudioCue(activeScene.id, assetRef, channel);
+            }
+            setAudioLibraryMode(null);
+          }}
+          options={audioOptions}
+          selectedAssetRef={selectedCue?.type === "audio.play" ? selectedCue.assetRef : undefined}
+        />
+      ) : null}
+      {visualLibraryKind ? (
+        <VisualAssetLibrary
+          kind={visualLibraryKind}
+          onClose={() => setVisualLibraryKind(null)}
+          onUse={(assetRef) => {
+            if (visualLibraryKind === "background") {
+              if (selectedCue?.type === "background.set") {
+                updateCue(activeScene.id, selectedCue.id, { assetRef }, "visualLibrary");
+              } else {
+                addCue(activeScene.id, "background.set");
+                const addedCueId = useEditorStore.getState().selectedCueId;
+                if (addedCueId)
+                  updateCue(activeScene.id, addedCueId, { assetRef }, "visualLibrary");
+              }
+            } else if (selectedCue?.type === "character.enter") {
+              updateCue(
+                activeScene.id,
+                selectedCue.id,
+                { characterRef: assetRef },
+                "visualLibrary",
+              );
+            } else {
+              addCue(activeScene.id, "character.enter");
+              const addedCueId = useEditorStore.getState().selectedCueId;
+              if (addedCueId)
+                updateCue(activeScene.id, addedCueId, { characterRef: assetRef }, "visualLibrary");
+            }
+            setVisualLibraryKind(null);
+          }}
+          options={visualLibraryKind === "background" ? backgroundOptions : characterOptions}
+          selectedAssetRef={
+            visualLibraryKind === "background" && selectedCue?.type === "background.set"
+              ? selectedCue.assetRef
+              : visualLibraryKind === "character" && selectedCue?.type === "character.enter"
+                ? selectedCue.characterRef
+                : undefined
+          }
+        />
+      ) : null}
     </main>
   );
 }

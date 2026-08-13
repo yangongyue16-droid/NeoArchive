@@ -42,6 +42,22 @@ export type ProjectExport = {
   revision: string;
 };
 
+export type AssetCatalogEntry = {
+  id: string;
+  assetRef: string;
+  label: string;
+  category: "background" | "character" | "audio";
+  previewAssetId: string | null;
+};
+
+export type AssetCatalog = {
+  libraryId: string;
+  generatedAt: string;
+  backgrounds: AssetCatalogEntry[];
+  characters: AssetCatalogEntry[];
+  audio: AssetCatalogEntry[];
+};
+
 export class BackendApiError extends Error {
   constructor(
     message: string,
@@ -155,4 +171,26 @@ export async function exportProject(projectId: string): Promise<ProjectExport> {
   return requestBackend<ProjectExport>(`/projects/${encodeURIComponent(projectId)}/export`, {
     method: "POST",
   });
+}
+
+function assetContentUrl(connection: BackendConnection, assetId: string): string {
+  const path = `${connection.baseUrl}/assets/${encodeURIComponent(assetId)}/content`;
+  if (!connection.sessionToken) {
+    return path;
+  }
+  return `${path}?access_token=${encodeURIComponent(connection.sessionToken)}`;
+}
+
+export async function getAssetCatalog(libraryId: string): Promise<{
+  catalog: AssetCatalog;
+  contentUrl: (assetId: string) => string;
+}> {
+  const catalog = await requestBackend<AssetCatalog>(
+    `/assets/catalog?library_id=${encodeURIComponent(libraryId)}`,
+  );
+  const connection = await getBackendConnection();
+  return {
+    catalog,
+    contentUrl: (assetId) => assetContentUrl(connection, assetId),
+  };
 }

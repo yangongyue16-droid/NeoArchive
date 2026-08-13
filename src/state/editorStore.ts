@@ -59,6 +59,7 @@ type EditorState = {
   setSceneAutoAdvance: (sceneId: string, autoAdvanceMs?: number) => void;
   deleteScene: (sceneId: string) => void;
   addCue: (sceneId: string, type: AddableCueType) => void;
+  addAudioCue: (sceneId: string, assetRef: string, channel: "bgm" | "voice" | "sfx") => void;
   updateCue: (sceneId: string, cueId: string, patch: EditableCuePatch, field: string) => void;
   deleteCue: (sceneId: string, cueId: string) => void;
   duplicateCue: (sceneId: string, cueId: string) => void;
@@ -169,7 +170,7 @@ function createCue(type: AddableCueType, atMs: number): StoryCue {
         id: createId("cue-audio"),
         type,
         atMs,
-        assetRef: "audio/your-file",
+        assetRef: "audio/cc0/tozan-background-music-1.ogg",
         channel: "bgm",
         loop: true,
         volume: 0.8,
@@ -306,6 +307,24 @@ export const useEditorStore = create<EditorState>((set) => ({
       }
       const nextAtMs = scene.cues.length * 500;
       const cue = createCue(type, nextAtMs);
+      scene.cues.push(cue);
+      const committed = commitProject(state, project, null);
+      return { ...committed, selectedCueId: cue.id };
+    }),
+  addAudioCue: (sceneId, assetRef, channel) =>
+    set((state) => {
+      const project = structuredClone(state.project);
+      const scene = findScene(project, sceneId);
+      if (!scene) {
+        return state;
+      }
+      const cue = createCue("audio.play", scene.cues.length * 500);
+      if (cue.type !== "audio.play") {
+        return state;
+      }
+      cue.assetRef = assetRef;
+      cue.channel = channel;
+      cue.loop = channel === "bgm";
       scene.cues.push(cue);
       const committed = commitProject(state, project, null);
       return { ...committed, selectedCueId: cue.id };

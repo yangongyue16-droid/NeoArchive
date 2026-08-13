@@ -29,10 +29,12 @@ class HealthResponse(ApiModel):
 
 class ScanRequest(ApiModel):
     root: str = Field(min_length=1)
+    library_id: str = Field(default="default", min_length=1, max_length=100)
 
 
 class ScanResponse(ApiModel):
     root: str
+    library_id: str
     scanned: int
     skipped: int
 
@@ -46,6 +48,12 @@ class AssetResponse(ApiModel):
     )
 
     id: str
+    library_id: str
+    relative_path: str
+    asset_ref: str | None
+    display_name: str | None
+    category: str | None
+    preview_relative_path: str | None
     content_hash: str
     path: str
     kind: str
@@ -56,6 +64,22 @@ class AssetResponse(ApiModel):
     height: int | None
     duration_ms: int | None
     last_seen_at: str
+
+
+class AssetCatalogEntry(ApiModel):
+    id: str
+    asset_ref: str
+    label: str
+    category: str
+    preview_asset_id: str | None
+
+
+class AssetCatalogResponse(ApiModel):
+    library_id: str
+    generated_at: str
+    backgrounds: list[AssetCatalogEntry]
+    characters: list[AssetCatalogEntry]
+    audio: list[AssetCatalogEntry]
 
 
 class ProjectDiagnostic(ApiModel):

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -59,13 +60,55 @@ def test_scans_and_lists_supported_assets(tmp_path: Path) -> None:
     app = create_app(Settings(data_dir=tmp_path / "data"))
 
     with TestClient(app) as client:
-        scan_response = client.post("/api/v1/assets/scan", json={"root": str(library)})
-        list_response = client.get("/api/v1/assets")
+        scan_response = client.post(
+            "/api/v1/assets/scan", json={"root": str(library), "libraryId": "test-library"}
+        )
+        list_response = client.get("/api/v1/assets", params={"libraryId": "test-library"})
 
     assert scan_response.status_code == 200
     assert scan_response.json()["scanned"] == 1
     assert list_response.status_code == 200
     assert list_response.json()[0]["path"].endswith("background.png")
+    assert list_response.json()[0]["libraryId"] == "test-library"
+
+
+def test_catalog_exposes_manifest_metadata_and_preview_links(tmp_path: Path) -> None:
+    library = tmp_path / "library"
+    background = library / "background.png"
+    portrait = library / "portrait.webp"
+    library.mkdir()
+    background.write_bytes(b"not-a-real-png")
+    portrait.write_bytes(b"not-a-real-webp")
+    (library / "catalog.json").write_text(
+        json.dumps(
+            {
+                "backgrounds": [
+                    {
+                        "id": "background/test",
+                        "label": "测试背景",
+                        "path": "background.png",
+                        "preview": "portrait.webp",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    app = create_app(Settings(data_dir=tmp_path / "data"))
+
+    with TestClient(app) as client:
+        client.post(
+            "/api/v1/assets/scan", json={"root": str(library), "libraryId": "test-library"}
+        )
+        catalog_response = client.get(
+            "/api/v1/assets/catalog", params={"library_id": "test-library"}
+        )
+
+    assert catalog_response.status_code == 200
+    catalog = catalog_response.json()
+    assert catalog["backgrounds"][0]["assetRef"] == "background/test"
+    assert catalog["backgrounds"][0]["label"] == "测试背景"
+    assert catalog["backgrounds"][0]["previewAssetId"]
 
 
 def test_project_schema_uses_camel_case(tmp_path: Path) -> None:

@@ -14,6 +14,12 @@
 
 素材来源、目录约定和本轮筛选结果见 [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md)。
 
+同步民间公开剧情素材包（写入已忽略的 `research-assets/ba-public-pack/`）：
+
+```bash
+vp run assets:sync
+```
+
 AzureArchive 前身调研见 [`docs/AZUREARCHIVE_RESEARCH.md`](docs/AZUREARCHIVE_RESEARCH.md)。
 
 编辑器、播放器、Python 后端与工程格式的实施蓝本见 [`docs/ARCHITECTURE_BLUEPRINT.md`](docs/ARCHITECTURE_BLUEPRINT.md)。
