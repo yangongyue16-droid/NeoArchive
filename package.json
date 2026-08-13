@@ -1,0 +1,61 @@
+{
+  "name": "neoarchive",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "dev:api": "uv run --project backend uvicorn neoarchive.main:app --app-dir backend/src --reload --host 127.0.0.1 --port 8765",
+    "dev:desktop": "concurrently -k -n api,desktop \"vp run dev:api\" \"tauri dev\"",
+    "check": "vp check",
+    "lint": "vp lint",
+    "format": "vp check --fix",
+    "build": "vp check && vp build",
+    "build:web": "vp check && vp build",
+    "build:sidecar": "node scripts/prepare-sidecar.mjs",
+    "build:desktop": "vp run build:sidecar && tauri build",
+    "preview": "vp preview",
+    "test": "vp test",
+    "test:api": "uv run --project backend pytest backend/tests",
+    "lint:api": "uv run --project backend ruff check backend/src backend/tests",
+    "typecheck:api": "uv run --project backend pyright backend/src backend/tests",
+    "api:schema": "uv run --project backend python backend/scripts/export_openapi.py",
+    "typecheck": "vp check --no-fmt --no-lint",
+    "api:generate": "orval --config orval.config.ts"
+  },
+  "dependencies": {
+    "@esotericsoftware/spine-pixi-v8": "^4.2.118",
+    "@gsap/react": "^2.1.2",
+    "@tanstack/react-query": "^5.101.4",
+    "@tauri-apps/api": "^2.11.1",
+    "@vitejs/plugin-react": "6.0.5",
+    "ajv": "^8.20.0",
+    "gsap": "^3.15.0",
+    "pixi.js": "^8.19.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "typescript": "7.0.2",
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.2.9",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "concurrently": "^10.0.4",
+    "jsdom": "^29.1.1",
+    "orval": "^8.24.0",
+    "vite-plus": "0.2.9"
+  },
+  "overrides": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@0.2.9",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=24 <26"
+  },
+  "packageManager": "npm@11.12.1"
+}

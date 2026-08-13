@@ -1,0 +1,19 @@
+[package]
+name = "neoarchive"
+version = "0.1.0"
+description = "NeoArchive desktop shell"
+authors = ["NeoArchive Contributors"]
+edition = "2021"
+
+[lib]
+name = "neoarchive_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+uuid = { version = "1", features = ["v4"] }

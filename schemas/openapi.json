@@ -1,0 +1,1580 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NeoArchive Local API",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/schemas/project": {
+      "get": {
+        "summary": "Project Schema",
+        "operationId": "project_schema_api_v1_schemas_project_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Project Schema Api V1 Schemas Project Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/validate": {
+      "post": {
+        "summary": "Validate Project",
+        "operationId": "validate_project_api_v1_projects_validate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoryProject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectValidationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "summary": "List Projects",
+        "operationId": "list_projects_api_v1_projects_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Projects Api V1 Projects Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}": {
+      "get": {
+        "summary": "Open Project",
+        "operationId": "open_project_api_v1_projects__project_id__get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Save Project",
+        "operationId": "save_project_api_v1_projects__project_id__put",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/export": {
+      "post": {
+        "summary": "Export Project",
+        "operationId": "export_project_api_v1_projects__project_id__export_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectExportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets": {
+      "get": {
+        "summary": "List Assets",
+        "operationId": "list_assets_api_v1_assets_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AssetResponse"
+                  },
+                  "title": "Response List Assets Api V1 Assets Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/scan": {
+      "post": {
+        "summary": "Scan Assets",
+        "operationId": "scan_assets_api_v1_assets_scan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/assets/{asset_id}/content": {
+      "get": {
+        "summary": "Asset Content",
+        "operationId": "asset_content_api_v1_assets__asset_id__content_get",
+        "parameters": [
+          {
+            "name": "asset_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Asset Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AssetResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "contentHash": {
+            "type": "string",
+            "title": "Contenthash"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "mimeType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mimetype"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "title": "Sizebytes"
+          },
+          "modifiedNs": {
+            "type": "integer",
+            "title": "Modifiedns"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationms"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "title": "Lastseenat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "contentHash",
+          "path",
+          "kind",
+          "mimeType",
+          "sizeBytes",
+          "modifiedNs",
+          "width",
+          "height",
+          "durationMs",
+          "lastSeenAt"
+        ],
+        "title": "AssetResponse"
+      },
+      "AudioPlayCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "audio.play",
+            "title": "Type"
+          },
+          "assetRef": {
+            "type": "string",
+            "title": "Assetref"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "bgm",
+              "voice",
+              "sfx"
+            ],
+            "title": "Channel"
+          },
+          "loop": {
+            "type": "boolean",
+            "title": "Loop",
+            "default": false
+          },
+          "volume": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Volume",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "assetRef",
+          "channel"
+        ],
+        "title": "AudioPlayCue"
+      },
+      "AudioStopCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "audio.stop",
+            "title": "Type"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "bgm",
+              "voice",
+              "sfx"
+            ],
+            "title": "Channel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "channel"
+        ],
+        "title": "AudioStopCue"
+      },
+      "BackgroundSetCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "background.set",
+            "title": "Type"
+          },
+          "assetRef": {
+            "type": "string",
+            "title": "Assetref"
+          },
+          "transitionMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transitionms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "assetRef"
+        ],
+        "title": "BackgroundSetCue"
+      },
+      "Chapter": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "scenes": {
+            "items": {
+              "$ref": "#/components/schemas/Scene"
+            },
+            "type": "array",
+            "title": "Scenes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "scenes"
+        ],
+        "title": "Chapter"
+      },
+      "CharacterEnterCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "character.enter",
+            "title": "Type"
+          },
+          "characterRef": {
+            "type": "string",
+            "title": "Characterref"
+          },
+          "animation": {
+            "type": "string",
+            "title": "Animation"
+          },
+          "delayMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Delayms",
+            "default": 400
+          },
+          "enterDurationMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Enterdurationms",
+            "default": 420
+          },
+          "transform": {
+            "$ref": "#/components/schemas/CharacterTransform"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "characterRef",
+          "animation",
+          "transform"
+        ],
+        "title": "CharacterEnterCue"
+      },
+      "CharacterExitCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "character.exit",
+            "title": "Type"
+          },
+          "characterRef": {
+            "type": "string",
+            "title": "Characterref"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "characterRef"
+        ],
+        "title": "CharacterExitCue"
+      },
+      "CharacterTransform": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "title": "X"
+          },
+          "y": {
+            "type": "number",
+            "title": "Y"
+          },
+          "scale": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Scale"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "scale"
+        ],
+        "title": "CharacterTransform"
+      },
+      "CharacterTransformPatch": {
+        "properties": {
+          "x": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "X"
+          },
+          "y": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Y"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CharacterTransformPatch"
+      },
+      "CharacterUpdateCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "character.update",
+            "title": "Type"
+          },
+          "characterRef": {
+            "type": "string",
+            "title": "Characterref"
+          },
+          "animation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Animation"
+          },
+          "transform": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CharacterTransformPatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "characterRef"
+        ],
+        "title": "CharacterUpdateCue"
+      },
+      "ChoiceOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "targetSceneId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targetsceneid"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ChoiceOption"
+      },
+      "ChoiceShowCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "choice.show",
+            "title": "Type"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/ChoiceOption"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "options"
+        ],
+        "title": "ChoiceShowCue"
+      },
+      "DialogueShowCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "dialogue.show",
+            "title": "Type"
+          },
+          "speaker": {
+            "type": "string",
+            "title": "Speaker"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "typingCps": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Typingcps",
+            "default": 36
+          },
+          "waitForAdvance": {
+            "type": "boolean",
+            "title": "Waitforadvance",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "speaker",
+          "text"
+        ],
+        "title": "DialogueShowCue"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "service": {
+            "type": "string",
+            "title": "Service"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "database": {
+            "type": "string",
+            "title": "Database"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Capabilities"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "version",
+          "database",
+          "capabilities"
+        ],
+        "title": "HealthResponse"
+      },
+      "ProjectDiagnostic": {
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "title": "Severity"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "pointer": {
+            "type": "string",
+            "title": "Pointer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "severity",
+          "code",
+          "message",
+          "pointer"
+        ],
+        "title": "ProjectDiagnostic"
+      },
+      "ProjectDocumentResponse": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/StoryProject"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectDiagnostic"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project",
+          "revision",
+          "diagnostics"
+        ],
+        "title": "ProjectDocumentResponse"
+      },
+      "ProjectExportResponse": {
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "title": "Projectid"
+          },
+          "artifactName": {
+            "type": "string",
+            "title": "Artifactname"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "title": "Sizebytes"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "projectId",
+          "artifactName",
+          "path",
+          "sizeBytes",
+          "revision"
+        ],
+        "title": "ProjectExportResponse"
+      },
+      "ProjectSaveRequest": {
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/StoryProject"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project"
+        ],
+        "title": "ProjectSaveRequest"
+      },
+      "ProjectSummary": {
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "title": "Projectid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "title": "Schemaversion"
+          },
+          "updatedAt": {
+            "type": "string",
+            "title": "Updatedat"
+          },
+          "revision": {
+            "type": "string",
+            "title": "Revision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "projectId",
+          "title",
+          "schemaVersion",
+          "updatedAt",
+          "revision"
+        ],
+        "title": "ProjectSummary"
+      },
+      "ProjectValidationResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectDiagnostic"
+            },
+            "type": "array",
+            "title": "Diagnostics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid",
+          "diagnostics"
+        ],
+        "title": "ProjectValidationResponse"
+      },
+      "ScanRequest": {
+        "properties": {
+          "root": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Root"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root"
+        ],
+        "title": "ScanRequest"
+      },
+      "ScanResponse": {
+        "properties": {
+          "root": {
+            "type": "string",
+            "title": "Root"
+          },
+          "scanned": {
+            "type": "integer",
+            "title": "Scanned"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root",
+          "scanned",
+          "skipped"
+        ],
+        "title": "ScanResponse"
+      },
+      "Scene": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "dialogue",
+              "direction",
+              "choice"
+            ],
+            "title": "Kind"
+          },
+          "autoAdvanceMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 250.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Autoadvancems"
+          },
+          "nextSceneId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextsceneid"
+          },
+          "cues": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/BackgroundSetCue"
+                },
+                {
+                  "$ref": "#/components/schemas/CharacterEnterCue"
+                },
+                {
+                  "$ref": "#/components/schemas/CharacterUpdateCue"
+                },
+                {
+                  "$ref": "#/components/schemas/CharacterExitCue"
+                },
+                {
+                  "$ref": "#/components/schemas/DialogueShowCue"
+                },
+                {
+                  "$ref": "#/components/schemas/AudioPlayCue"
+                },
+                {
+                  "$ref": "#/components/schemas/AudioStopCue"
+                },
+                {
+                  "$ref": "#/components/schemas/ChoiceShowCue"
+                },
+                {
+                  "$ref": "#/components/schemas/TransitionPlayCue"
+                },
+                {
+                  "$ref": "#/components/schemas/WaitCue"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "audio.play": "#/components/schemas/AudioPlayCue",
+                  "audio.stop": "#/components/schemas/AudioStopCue",
+                  "background.set": "#/components/schemas/BackgroundSetCue",
+                  "character.enter": "#/components/schemas/CharacterEnterCue",
+                  "character.exit": "#/components/schemas/CharacterExitCue",
+                  "character.update": "#/components/schemas/CharacterUpdateCue",
+                  "choice.show": "#/components/schemas/ChoiceShowCue",
+                  "dialogue.show": "#/components/schemas/DialogueShowCue",
+                  "transition.play": "#/components/schemas/TransitionPlayCue",
+                  "wait": "#/components/schemas/WaitCue"
+                }
+              }
+            },
+            "type": "array",
+            "title": "Cues"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "kind",
+          "cues"
+        ],
+        "title": "Scene"
+      },
+      "StoryProject": {
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schemaversion"
+          },
+          "projectId": {
+            "type": "string",
+            "title": "Projectid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "entrySceneId": {
+            "type": "string",
+            "title": "Entrysceneid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "chapters": {
+            "items": {
+              "$ref": "#/components/schemas/Chapter"
+            },
+            "type": "array",
+            "title": "Chapters"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "projectId",
+          "title",
+          "entrySceneId",
+          "createdAt",
+          "updatedAt",
+          "chapters"
+        ],
+        "title": "StoryProject"
+      },
+      "TimeWheelConfig": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "enum": [
+              "system",
+              "custom"
+            ],
+            "title": "Source",
+            "default": "system"
+          },
+          "customDateTime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customdatetime"
+          },
+          "precision": {
+            "type": "string",
+            "enum": [
+              "day",
+              "hour",
+              "minute",
+              "second"
+            ],
+            "title": "Precision",
+            "default": "second"
+          },
+          "showDate": {
+            "type": "boolean",
+            "title": "Showdate",
+            "default": true
+          },
+          "showWeekday": {
+            "type": "boolean",
+            "title": "Showweekday",
+            "default": true
+          },
+          "showTime": {
+            "type": "boolean",
+            "title": "Showtime",
+            "default": true
+          },
+          "showTimezone": {
+            "type": "boolean",
+            "title": "Showtimezone",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TimeWheelConfig"
+      },
+      "TransitionPlayCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "transition.play",
+            "title": "Type"
+          },
+          "preset": {
+            "type": "string",
+            "enum": [
+              "archive-shutter",
+              "chromatic-slice",
+              "fade-black",
+              "fade-white",
+              "halo-iris"
+            ],
+            "title": "Preset"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 240.0,
+            "title": "Durationms",
+            "default": 900
+          },
+          "holdMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Holdms",
+            "default": 0
+          },
+          "intensity": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.1,
+            "title": "Intensity",
+            "default": 1
+          },
+          "timeWheel": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeWheelConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type",
+          "preset"
+        ],
+        "title": "TransitionPlayCue"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WaitCue": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "atMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Atms"
+          },
+          "type": {
+            "type": "string",
+            "const": "wait",
+            "title": "Type"
+          },
+          "durationMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationms"
+          },
+          "waitForAdvance": {
+            "type": "boolean",
+            "title": "Waitforadvance",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "atMs",
+          "type"
+        ],
+        "title": "WaitCue"
+      }
+    }
+  }
+}

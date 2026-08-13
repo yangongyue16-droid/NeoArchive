@@ -1,0 +1,150 @@
+export type SceneKind = "dialogue" | "direction" | "choice";
+
+export type CharacterTransform = {
+  x: number;
+  y: number;
+  scale: number;
+};
+
+type BaseCue = {
+  id: string;
+  atMs: number;
+};
+
+export type BackgroundSetCue = BaseCue & {
+  type: "background.set";
+  assetRef: string;
+  transitionMs?: number;
+};
+
+export type CharacterEnterCue = BaseCue & {
+  type: "character.enter";
+  characterRef: string;
+  animation: string;
+  delayMs?: number;
+  enterDurationMs?: number;
+  transform: CharacterTransform;
+};
+
+export type CharacterUpdateCue = BaseCue & {
+  type: "character.update";
+  characterRef: string;
+  animation?: string;
+  transform?: Partial<CharacterTransform>;
+};
+
+export type CharacterExitCue = BaseCue & {
+  type: "character.exit";
+  characterRef: string;
+};
+
+export type DialogueShowCue = BaseCue & {
+  type: "dialogue.show";
+  speaker: string;
+  subtitle?: string;
+  text: string;
+  typingCps: number;
+  waitForAdvance: boolean;
+};
+
+export type AudioPlayCue = BaseCue & {
+  type: "audio.play";
+  assetRef: string;
+  channel: "bgm" | "voice" | "sfx";
+  loop?: boolean;
+  volume?: number;
+};
+
+export type AudioStopCue = BaseCue & {
+  type: "audio.stop";
+  channel: "bgm" | "voice" | "sfx";
+};
+
+export type ChoiceOption = {
+  id: string;
+  label: string;
+  targetSceneId?: string;
+};
+
+export type ChoiceShowCue = BaseCue & {
+  type: "choice.show";
+  prompt?: string;
+  options: ChoiceOption[];
+};
+
+export type WaitCue = BaseCue & {
+  type: "wait";
+  durationMs?: number;
+  waitForAdvance?: boolean;
+};
+
+export type StageTransitionPreset =
+  | "archive-shutter"
+  | "chromatic-slice"
+  | "fade-black"
+  | "fade-white"
+  | "halo-iris";
+
+export type TimeWheelConfig = {
+  source: "system" | "custom";
+  customDateTime?: string;
+  precision: "day" | "hour" | "minute" | "second";
+  showDate: boolean;
+  showWeekday: boolean;
+  showTime: boolean;
+  showTimezone: boolean;
+};
+
+export type TransitionPlayCue = BaseCue & {
+  type: "transition.play";
+  preset: StageTransitionPreset;
+  durationMs: number;
+  holdMs?: number;
+  intensity?: number;
+  timeWheel?: TimeWheelConfig;
+};
+
+export type StoryCue =
+  | AudioPlayCue
+  | AudioStopCue
+  | BackgroundSetCue
+  | CharacterEnterCue
+  | CharacterExitCue
+  | CharacterUpdateCue
+  | ChoiceShowCue
+  | DialogueShowCue
+  | TransitionPlayCue
+  | WaitCue;
+
+export type Scene = {
+  id: string;
+  title: string;
+  kind: SceneKind;
+  autoAdvanceMs?: number;
+  nextSceneId?: string;
+  cues: StoryCue[];
+};
+
+export type Chapter = {
+  id: string;
+  title: string;
+  scenes: Scene[];
+};
+
+export type StoryProject = {
+  schemaVersion: 1;
+  projectId: string;
+  title: string;
+  entrySceneId: string;
+  createdAt: string;
+  updatedAt: string;
+  chapters: Chapter[];
+};
+
+export function getAllScenes(project: StoryProject): Scene[] {
+  return project.chapters.flatMap((chapter) => chapter.scenes);
+}
+
+export function findScene(project: StoryProject, sceneId: string): Scene | undefined {
+  return getAllScenes(project).find((scene) => scene.id === sceneId);
+}
