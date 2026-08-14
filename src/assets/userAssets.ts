@@ -75,6 +75,21 @@ export function parseUserAssetId(assetRef: string): string | null {
   return isUserAssetRef(assetRef) ? assetRef.slice(userAssetPrefix.length) : null;
 }
 
+export async function readUserAssetBlob(assetRef: string): Promise<Blob | null> {
+  const id = parseUserAssetId(assetRef);
+  if (!id || typeof indexedDB === "undefined") {
+    return null;
+  }
+  const database = await openDatabase();
+  const record = await new Promise<StoredUserAsset | undefined>((resolve, reject) => {
+    const request = database.transaction(storeName, "readonly").objectStore(storeName).get(id);
+    request.onsuccess = () => resolve(request.result as StoredUserAsset | undefined);
+    request.onerror = () => reject(request.error ?? new Error("无法读取本地素材"));
+  });
+  database.close();
+  return record?.blob ?? null;
+}
+
 export function getUserAsset(assetRef: string): (UserAssetMeta & { url: string }) | null {
   const id = parseUserAssetId(assetRef);
   if (!id) {

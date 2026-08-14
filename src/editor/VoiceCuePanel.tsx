@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { resolveAudio } from "../assets/catalog";
-import { getUserAsset, importUserAsset } from "../assets/userAssets";
+import { getUserAsset, importUserAsset, readUserAssetBlob } from "../assets/userAssets";
 import type { DialogueShowCue } from "../project-schema/types";
 
 type VoiceCuePanelProps = {
@@ -42,41 +42,105 @@ export function VoiceStatusButton({
 export function VoiceCuePanel({ cue, expanded, onToggle, onChange }: VoiceCuePanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const previewRef = useRef<HTMLAudioElement | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [durationMs, setDurationMs] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const asset = cue.voiceAssetRef ? getUserAsset(cue.voiceAssetRef) : null;
   const source = cue.voiceAssetRef ? resolveAudio(cue.voiceAssetRef) : null;
   const startMs = cue.voiceStartMs ?? 0;
 
   useEffect(() => {
-    if (!expanded || !source) {
+    if (!expanded || !cue.voiceAssetRef) {
       return;
     }
     let cancelled = false;
     const context = new AudioContext();
-    void fetch(source)
-      .then((response) => response.arrayBuffer())
-      .then((buffer) => context.decodeAudioData(buffer))
-      .then((decoded) => {
+    void (async () => {
+      try {
+        const blob =
+          (await readUserAssetBlob(cue.voiceAssetRef!)) ??
+          (source ? await fetch(source).then((item) => item.blob()) : null);
+        if (!blob) {
+          throw new Error("找不到语音文件");
+        }
+        const decoded = await context.decodeAudioData(await blob.arrayBuffer());
         if (cancelled) {
           return;
         }
         setDurationMs(Math.round(decoded.duration * 1000));
         drawWaveform(canvasRef.current, decoded);
-      })
-      .catch(() => {
+        setError(null);
+      } catch {
         if (!cancelled) {
           setError("波形加载失败");
         }
-      })
-      .finally(() => {
+      } finally {
         void context.close();
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, [expanded, source]);
+  }, [cue.voiceAssetRef, expanded, source]);
+
+  const stopPreview = useCallback(() => {
+    const audio = previewRef.current;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    }
+    previewRef.current = null;
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPreviewing(false);
+  }, []);
+
+  useEffect(() => {
+    stopPreview();
+    return () => {
+      stopPreview();
+    };
+  }, [cue.voiceAssetRef, expanded, startMs, stopPreview]);
+
+  const playPreviewOnce = async () => {
+    if (!cue.voiceAssetRef) {
+      return;
+    }
+    if (previewing) {
+      stopPreview();
+      return;
+    }
+    try {
+      const blob =
+        (await readUserAssetBlob(cue.voiceAssetRef)) ??
+        (source ? await fetch(source).then((item) => item.blob()) : null);
+      if (!blob) {
+        throw new Error("找不到语音文件");
+      }
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      previewUrlRef.current = url;
+      previewRef.current = audio;
+      audio.addEventListener("ended", stopPreview);
+      audio.addEventListener("error", () => {
+        setError("试听失败");
+        stopPreview();
+      });
+      audio.currentTime = startMs / 1000;
+      await audio.play();
+      setPreviewing(true);
+      setError(null);
+    } catch {
+      setError("试听失败");
+      stopPreview();
+    }
+  };
 
   if (!expanded) {
     return null;
@@ -91,8 +155,14 @@ export function VoiceCuePanel({ cue, expanded, onToggle, onChange }: VoiceCuePan
             {busy ? "导入中…" : "选择语音"}
           </button>
           {cue.voiceAssetRef ? (
+            <button onClick={() => void playPreviewOnce()} type="button">
+              {previewing ? "停止" : "试听一次"}
+            </button>
+          ) : null}
+          {cue.voiceAssetRef ? (
             <button
               onClick={() => {
+                stopPreview();
                 onChange({ voiceAssetRef: undefined, voiceStartMs: undefined });
                 setDurationMs(0);
               }}

@@ -505,7 +505,7 @@ h2 {
 .dialogue-layer strong {
   left: calc(var(--dlg-speaker-x) * 1%);
   top: calc(var(--dlg-speaker-y) * 1%);
-  font-size: calc(var(--dlg-speaker-size) * 100cqw / var(--stage-w));
+  font-size: calc(var(--dlg-speaker-size) * var(--stage-scale, 1) * 1px);
   font-weight: 600;
   line-height: 1.15;
   letter-spacing: -0.35px;
@@ -515,7 +515,7 @@ h2 {
   left: calc(var(--dlg-subtitle-x) * 1%);
   top: calc(var(--dlg-subtitle-y) * 1%);
   color: #7dd4ef;
-  font-size: calc(var(--dlg-subtitle-size) * 100cqw / var(--stage-w));
+  font-size: calc(var(--dlg-subtitle-size) * var(--stage-scale, 1) * 1px);
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -524,7 +524,7 @@ h2 {
   left: calc(var(--dlg-rule-x) * 1%);
   top: calc(var(--dlg-rule-y) * 1%);
   width: calc(var(--dlg-rule-w) * 1%);
-  height: calc(2 * 100cqw / var(--stage-w));
+  height: calc(2 * var(--stage-scale, 1) * 1px);
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.68),
@@ -537,7 +537,7 @@ h2 {
   left: calc(var(--dlg-text-x) * 1%);
   top: calc(var(--dlg-text-y) * 1%);
   right: 6%;
-  font-size: calc(var(--dlg-text-size) * 100cqw / var(--stage-w));
+  font-size: calc(var(--dlg-text-size) * var(--stage-scale, 1) * 1px);
   line-height: 1.6;
   letter-spacing: 0.01em;
   text-wrap: pretty;
@@ -1081,6 +1081,8 @@ h2 {
 .player-shell {
   display: grid;
   grid-template-rows: 64px minmax(0, 1fr) 72px;
+  width: 100%;
+  height: 100vh;
   min-height: 100vh;
   background:
     radial-gradient(circle at 50% 10%, rgba(78, 183, 216, 0.12), transparent 32%), #090b0c;
@@ -1120,7 +1122,10 @@ h2 {
 .player-stage-wrap {
   display: grid;
   place-items: center;
+  min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   padding: 24px;
 }
 
@@ -1135,17 +1140,18 @@ h2 {
 }
 
 .stage-fit > .story-stage {
-  width: min(100cqw, calc(100cqh * var(--stage-w) / var(--stage-h)));
-  height: min(100cqh, calc(100cqw * var(--stage-h) / var(--stage-w)));
+  width: min(100%, calc(100cqh * var(--stage-w) / var(--stage-h)));
+  height: min(100%, calc(100cqw * var(--stage-h) / var(--stage-w)));
   max-width: 100%;
   max-height: 100%;
 }
 
-.player-stage-wrap .story-stage {
-  width: auto;
+.player-stage-wrap.stage-fit > .story-stage {
+  width: min(100%, calc((100vh - 184px) * var(--stage-w) / var(--stage-h)));
   height: auto;
+  aspect-ratio: var(--stage-w) / var(--stage-h);
   max-width: 100%;
-  max-height: 100%;
+  max-height: calc(100vh - 184px);
 }
 
 .visually-hidden {
@@ -1248,7 +1254,7 @@ h2 {
 }
 
 .work-mode-script .stage-column {
-  grid-template-rows: 36px minmax(240px, 0.75fr) minmax(220px, 1.25fr);
+  grid-template-rows: 36px minmax(360px, 1.4fr) minmax(180px, 0.7fr);
 }
 
 .work-mode-stage .stage-column {
@@ -1258,6 +1264,8 @@ h2 {
 .stage-column > .stage-fit {
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .stage-column > .story-stage,
@@ -1753,9 +1761,15 @@ h2 {
   overflow: hidden;
 }
 
-.player-shell.is-ui-hidden .player-stage-wrap .story-stage {
-  max-width: 100%;
-  max-height: 100%;
+.player-shell.is-ui-hidden .player-stage-wrap {
+  padding: 0;
+}
+
+.player-shell.is-ui-hidden .player-stage-wrap.stage-fit > .story-stage {
+  width: min(100vw, calc(100vh * var(--stage-w) / var(--stage-h)));
+  height: auto;
+  max-width: 100vw;
+  max-height: 100vh;
 }
 
 .show-ui-button {

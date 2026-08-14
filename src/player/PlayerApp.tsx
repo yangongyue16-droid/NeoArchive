@@ -103,10 +103,8 @@ export function PlayerApp() {
   const setExclusiveFullscreen = useCallback(async (next: boolean) => {
     try {
       if ("__TAURI_INTERNALS__" in window) {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const current = getCurrentWindow();
-        await current.setSimpleFullscreen(false);
-        await current.setFullscreen(next);
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("set_exclusive_fullscreen", { fullscreen: next });
       } else if (next) {
         await document.documentElement.requestFullscreen();
       } else if (document.fullscreenElement) {

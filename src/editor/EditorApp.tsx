@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BackendApiError, openProject, saveProject, type ProjectDocument } from "../api/client";
 import { useBackendHealth } from "../api/useBackendHealth";
 import { builtInDialogueFont } from "../assets/catalog";
@@ -59,6 +59,7 @@ export function EditorApp() {
   const [notice, setNotice] = useState<string | null>(null);
   const [projectBusy, setProjectBusy] = useState(false);
   const [workMode, setWorkMode] = useState<WorkMode>("script");
+  const [exclusiveFullscreen, setExclusiveFullscreen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() =>
     window.localStorage.getItem("neoarchive-theme") === "day" ? "day" : "night",
   );
@@ -75,6 +76,48 @@ export function EditorApp() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("neoarchive-theme", theme);
   }, [theme]);
+
+  const exitExclusiveFullscreen = useCallback(async () => {
+    try {
+      if ("__TAURI_INTERNALS__" in window) {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("set_exclusive_fullscreen", { fullscreen: false });
+      } else if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } finally {
+      setExclusiveFullscreen(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) {
+      return;
+    }
+    let disposed = false;
+    const syncFullscreen = async () => {
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const current = await getCurrentWindow().isFullscreen();
+      if (!disposed) {
+        setExclusiveFullscreen(current);
+      }
+    };
+    void syncFullscreen();
+    const timer = window.setInterval(() => {
+      void syncFullscreen();
+    }, 500);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        void exitExclusiveFullscreen();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [exitExclusiveFullscreen]);
 
   const handleOpenFile = async (file: File) => {
     try {
@@ -245,6 +288,15 @@ export function EditorApp() {
               夜间
             </button>
           </div>
+          {exclusiveFullscreen ? (
+            <button
+              className="history-button"
+              onClick={() => void exitExclusiveFullscreen()}
+              type="button"
+            >
+              退出全屏
+            </button>
+          ) : null}
           <span className={`status-pill ${backendHealth ? "is-online" : ""}`}>
             {dirty
               ? "自动草稿 · 未保存"

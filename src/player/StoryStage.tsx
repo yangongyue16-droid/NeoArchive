@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type CSSProperties,
   type PointerEvent,
 } from "react";
 import { resolveAudio, resolveBackgroundMedia, resolveCharacter } from "../assets/catalog";
@@ -188,6 +189,8 @@ export function StoryStage({
   const [visibleCharacters, setVisibleCharacters] = useState(() =>
     instantText ? (dialogue?.text.length ?? 0) : 0,
   );
+  const stageRef = useRef<HTMLElement>(null);
+  const [stageScale, setStageScale] = useState(1);
   const completionNotifiedRef = useRef<string | null>(null);
   const dialogueKey = dialogue ? `${dialogue.cueId}:${dialogue.text}` : null;
   const textComplete = !dialogue || instantText || visibleCharacters >= dialogue.text.length;
@@ -217,6 +220,22 @@ export function StoryStage({
   }, [dialogueKey, dialogue, instantText]);
 
   useEffect(() => {
+    const node = stageRef.current;
+    if (!node) {
+      return;
+    }
+    const updateScale = () => {
+      const width = node.getBoundingClientRect().width;
+      const designWidth = stage?.width ?? 1920;
+      setStageScale(width > 0 && designWidth > 0 ? width / designWidth : 1);
+    };
+    updateScale();
+    const observer = new ResizeObserver(updateScale);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [stage?.width]);
+
+  useEffect(() => {
     if (!dialogue || !textComplete || completionNotifiedRef.current === dialogueKey) {
       return;
     }
@@ -226,8 +245,15 @@ export function StoryStage({
 
   return (
     <article
+      ref={stageRef}
       className={`story-stage ${onAdvance && !layoutEdit ? "is-interactive" : ""} ${layoutEdit ? "is-layout-edit" : ""}`}
-      style={{ ...stageCssVars(stage), ...dialogueBoxCssVars(dialogueBox) }}
+      style={
+        {
+          ...stageCssVars(stage),
+          ...dialogueBoxCssVars(dialogueBox),
+          "--stage-scale": String(stageScale),
+        } as CSSProperties
+      }
       onClick={() => {
         if (layoutEdit || playback.choices.length > 0) {
           return;

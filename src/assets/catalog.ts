@@ -99,7 +99,7 @@ export function resolveDialogueFont(assetRef: string | null | undefined): {
 
 export function resolveAudio(assetRef: string): string | null {
   const imported = getUserAsset(assetRef);
-  if (imported?.kind === "audio") {
+  if (imported) {
     return imported.url;
   }
   return audio[assetRef] ?? (/^(?:https?:|blob:|data:|\/)/.test(assetRef) ? assetRef : null);
