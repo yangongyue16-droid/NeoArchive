@@ -9,11 +9,16 @@ const researchRoot = resolve(process.cwd(), "research-assets");
 const researchRoute = "/__research/";
 
 const contentTypes: Record<string, string> = {
+  ".atlas": "text/plain",
   ".gif": "image/gif",
   ".jpeg": "image/jpeg",
   ".jpg": "image/jpeg",
+  ".json": "application/json",
+  ".ogg": "audio/ogg",
   ".png": "image/png",
+  ".skel": "application/octet-stream",
   ".svg": "image/svg+xml",
+  ".wav": "audio/wav",
   ".webp": "image/webp",
 };
 
@@ -80,8 +85,18 @@ function localResearchAssets(): Plugin {
 
 export default defineConfig({
   plugins: [react(), localResearchAssets()],
+  server: {
+    host: "127.0.0.1",
+  },
   fmt: {
-    ignorePatterns: ["backend/**", "docs/**", "schemas/openapi.json", "src/api/generated/**"],
+    ignorePatterns: [
+      "backend/**",
+      "docs/**",
+      "schemas/openapi.json",
+      "src/api/generated/**",
+      "src-tauri/gen/**",
+      ".firecrawl/**",
+    ],
   },
   lint: {
     ignorePatterns: ["src/api/generated/**"],

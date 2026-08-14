@@ -10,6 +10,8 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from neoarchive import __version__
 from neoarchive.api.models import (
+    AssetCatalogEntry,
+    AssetCatalogResponse,
     AssetResponse,
     HealthResponse,
     ProjectDiagnostic,
@@ -71,7 +73,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def require_session_token(request: Request, call_next):  # type: ignore[no-untyped-def]
         if active_settings.session_token and request.url.path.startswith("/api/"):
             authorization = request.headers.get("authorization")
-            if authorization != f"Bearer {active_settings.session_token}":
+            content_token = request.query_params.get("access_token")
+            is_asset_path = request.url.path.startswith("/api/v1/assets/")
+            can_stream_asset = is_asset_path and request.url.path.endswith("/content")
+            valid_stream_token = can_stream_asset and content_token == active_settings.session_token
+            expected_authorization = f"Bearer {active_settings.session_token}"
+            if authorization != expected_authorization and not valid_stream_token:
                 return JSONResponse(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"detail": "Invalid session token"},
@@ -223,9 +230,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         request: Request,
         limit: int = Query(default=100, ge=1, le=500),
         offset: int = Query(default=0, ge=0),
+        library_id: str | None = Query(default=None),
+        kind: str | None = Query(default=None),
+        query: str | None = Query(default=None, max_length=200),
     ) -> list[AssetResponse]:
         repository: AssetIndexRepository = request.app.state.asset_index
-        assets = repository.list(limit=limit, offset=offset)
+        assets = repository.list(
+            library_id=library_id,
+            kind=kind,
+            query=query,
+            limit=limit,
+            offset=offset,
+        )
         return [AssetResponse.model_validate(asset) for asset in assets]
 
     @app.post("/api/v1/assets/scan", response_model=ScanResponse)
@@ -233,13 +249,54 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         scanner: AssetScanner = request.app.state.asset_scanner
         root = Path(payload.root).expanduser().resolve()
         try:
-            scanned, skipped = scanner.scan(root)
+            scanned, skipped = scanner.scan(root, library_id=payload.library_id)
         except (FileNotFoundError, NotADirectoryError) as error:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=str(error),
             ) from error
-        return ScanResponse(root=str(root), scanned=scanned, skipped=skipped)
+        return ScanResponse(
+            root=str(root), library_id=payload.library_id, scanned=scanned, skipped=skipped
+        )
+
+    @app.get("/api/v1/assets/catalog", response_model=AssetCatalogResponse)
+    def asset_catalog(
+        request: Request,
+        library_id: str = Query(default="default", min_length=1, max_length=100),
+    ) -> AssetCatalogResponse:
+        repository: AssetIndexRepository = request.app.state.asset_index
+        rows = repository.catalog(library_id)
+        collections: dict[str, list[AssetCatalogEntry]] = {
+            "background": [],
+            "character": [],
+            "audio": [],
+        }
+        generated_at = ""
+        for asset in rows:
+            if asset.category not in collections or not asset.asset_ref:
+                continue
+            preview = (
+                repository.find_by_relative_path(library_id, asset.preview_relative_path)
+                if asset.preview_relative_path
+                else None
+            )
+            collections[asset.category].append(
+                AssetCatalogEntry(
+                    id=asset.id,
+                    asset_ref=asset.asset_ref,
+                    label=asset.display_name or asset.asset_ref,
+                    category=asset.category,
+                    preview_asset_id=preview.id if preview else None,
+                )
+            )
+            generated_at = max(generated_at, asset.last_seen_at)
+        return AssetCatalogResponse(
+            library_id=library_id,
+            generated_at=generated_at,
+            backgrounds=collections["background"],
+            characters=collections["character"],
+            audio=collections["audio"],
+        )
 
     @app.get("/api/v1/assets/{asset_id}/content")
     def asset_content(asset_id: str, request: Request) -> FileResponse:

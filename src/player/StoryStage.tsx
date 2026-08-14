@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { resolveAudio, resolveBackground, resolveCharacter } from "../assets/catalog";
-import type { PlaybackState, RuntimeAudio } from "../runtime/StoryRuntime";
+import { resolveBackground, resolveCharacter } from "../assets/catalog";
+import { AudioMixer, type AudioSettings } from "./AudioMixer";
+import type { PlaybackState } from "../runtime/StoryRuntime";
 import { SpineCharacter } from "../SpineCharacter";
 
 const StageTransition = lazy(() =>
@@ -17,14 +18,8 @@ type StoryStageProps = {
   onCharacterEnterComplete?: (instanceId: number) => void;
   onTransitionComplete?: (instanceId: number) => void;
   onTransitionCover?: (instanceId: number) => void;
+  audioSettings?: AudioSettings;
 };
-
-function StoryAudio({ audio }: { audio: RuntimeAudio }) {
-  const source = resolveAudio(audio.assetRef);
-  return source ? (
-    <audio autoPlay key={`${audio.channel}:${audio.assetRef}`} loop={audio.loop} src={source} />
-  ) : null;
-}
 
 export function StoryStage({
   playback,
@@ -36,6 +31,7 @@ export function StoryStage({
   onCharacterEnterComplete,
   onTransitionComplete,
   onTransitionCover,
+  audioSettings = { masterVolume: 1, muted: false },
 }: StoryStageProps) {
   const backgroundUrl = resolveBackground(playback.backgroundRef);
   const dialogue = playback.dialogue;
@@ -118,9 +114,7 @@ export function StoryStage({
           />
         ) : null;
       })}
-      {Object.values(playback.audio).map((audio) =>
-        audio ? <StoryAudio audio={audio} key={audio.channel} /> : null,
-      )}
+      <AudioMixer audio={playback.audio} settings={audioSettings} status={playback.status} />
       {dialogue ? (
         <div className="dialogue-layer">
           <div className="dialogue-content">

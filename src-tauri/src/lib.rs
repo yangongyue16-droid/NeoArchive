@@ -68,7 +68,7 @@ pub fn run() {
                     if let Some(child) = child.take() {
                         let _ = child.kill();
                     }
-                }
+                };
             }
         })
         .run(tauri::generate_context!())

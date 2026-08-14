@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { loadPublicPackCatalog } from "../assets/catalog";
 import { loadDraftProject } from "../project-schema/projectFile";
 import { sampleProject } from "../project-schema/sampleProject";
 import { findScene } from "../project-schema/types";
@@ -29,6 +30,9 @@ function isSaveSnapshot(value: unknown): value is SaveSnapshot {
 }
 
 export function PlayerApp() {
+  useEffect(() => {
+    void loadPublicPackCatalog();
+  }, []);
   const project = useMemo(() => loadDraftProject() ?? sampleProject, []);
   const runtime = useMemo(() => new StoryRuntime(project), [project]);
   const playback = useSyncExternalStore(
@@ -41,6 +45,8 @@ export function PlayerApp() {
   const [uiHidden, setUiHidden] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [masterVolume, setMasterVolume] = useState(0.8);
+  const [muted, setMuted] = useState(false);
   const [completedCueId, setCompletedCueId] = useState<string | null>(null);
   const [currentWasRead, setCurrentWasRead] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
@@ -144,6 +150,7 @@ export function PlayerApp() {
       </header>
       <section className="player-stage-wrap">
         <StoryStage
+          audioSettings={{ masterVolume, muted }}
           onAdvance={() => runtime.advance()}
           onChoose={(optionId) => runtime.choose(optionId)}
           onDialogueComplete={handleDialogueComplete}
@@ -186,6 +193,20 @@ export function PlayerApp() {
         </button>
         <button onClick={() => runtime.advance()} type="button">
           下一句
+        </button>
+        <label className="audio-volume-control">
+          <span>音量</span>
+          <input
+            aria-label="主音量"
+            max={100}
+            min={0}
+            onChange={(event) => setMasterVolume(Number(event.currentTarget.value) / 100)}
+            type="range"
+            value={Math.round(masterVolume * 100)}
+          />
+        </label>
+        <button onClick={() => setMuted((current) => !current)} type="button">
+          {muted ? "恢复声音" : "静音"}
         </button>
       </footer>
 

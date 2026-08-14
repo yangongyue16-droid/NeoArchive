@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { audioChannelOptions, backgroundOptions, characterOptions } from "../assets/catalog";
+import { audioChannelOptions, useAssetCatalog, type AssetOption } from "../assets/catalog";
 import type { CharacterTransform, StoryCue, TimeWheelConfig } from "../project-schema/types";
 import type { EditableCuePatch } from "../state/editorStore";
 import { transitionPresets } from "../transitions/presets";
@@ -7,6 +7,7 @@ import { transitionPresets } from "../transitions/presets";
 type CueInspectorProps = {
   cue: StoryCue | null;
   onUpdate: (patch: EditableCuePatch, field: string) => void;
+  onOpenLibrary?: (kind: "audio" | "background" | "character") => void;
 };
 
 type PlacementControlProps = {
@@ -160,7 +161,36 @@ function CharacterPlacement({
   );
 }
 
-export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
+function AssetLibraryTrigger({
+  label,
+  onOpen,
+  options,
+  value,
+}: {
+  label: string;
+  onOpen: () => void;
+  options: readonly AssetOption[];
+  value: string;
+}) {
+  const current = options.find((option) => option.value === value);
+
+  return (
+    <div className="asset-library-trigger">
+      <span>
+        {label}
+        <small className="asset-count"> {options.length}</small>
+      </span>
+      <button onClick={onOpen} type="button">
+        <strong>{current?.label ?? value}</strong>
+        <code>{value}</code>
+        <span>点击浏览素材库</span>
+      </button>
+    </div>
+  );
+}
+
+export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps) {
+  const { audioOptions, backgroundOptions, characterOptions } = useAssetCatalog();
   if (!cue) {
     return <p className="empty-inspector">选择一条剧本行后在这里编辑。</p>;
   }
@@ -238,19 +268,12 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
 
       {cue.type === "background.set" ? (
         <>
-          <label>
-            <span>背景素材</span>
-            <select
-              onChange={(event) => onUpdate({ assetRef: event.currentTarget.value }, "assetRef")}
-              value={cue.assetRef}
-            >
-              {backgroundOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AssetLibraryTrigger
+            label="背景素材"
+            onOpen={() => onOpenLibrary?.("background")}
+            options={backgroundOptions}
+            value={cue.assetRef}
+          />
           <label>
             <span>淡入时间（ms）</span>
             <input
@@ -270,21 +293,12 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
 
       {cue.type === "character.enter" ? (
         <>
-          <label>
-            <span>角色素材</span>
-            <select
-              onChange={(event) =>
-                onUpdate({ characterRef: event.currentTarget.value }, "characterRef")
-              }
-              value={cue.characterRef}
-            >
-              {characterOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AssetLibraryTrigger
+            label="角色素材"
+            onOpen={() => onOpenLibrary?.("character")}
+            options={characterOptions}
+            value={cue.characterRef}
+          />
           <label>
             <span>Spine 动画</span>
             <input
@@ -317,14 +331,12 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
 
       {cue.type === "audio.play" ? (
         <>
-          <label>
-            <span>素材引用</span>
-            <input
-              onChange={(event) => onUpdate({ assetRef: event.currentTarget.value }, "assetRef")}
-              placeholder="audio/bgm/theme-01"
-              value={cue.assetRef}
-            />
-          </label>
+          <AssetLibraryTrigger
+            label="音频素材"
+            onOpen={() => onOpenLibrary?.("audio")}
+            options={audioOptions}
+            value={cue.assetRef}
+          />
           <div className="field-row">
             <label>
               <span>通道</span>

@@ -19,6 +19,15 @@ export const sampleProject: StoryProject = {
           nextSceneId: "scene-002",
           cues: [
             {
+              id: "cue-audio-001",
+              type: "audio.play",
+              atMs: 0,
+              assetRef: "audio/cc0/tozan-background-music-1.ogg",
+              channel: "bgm",
+              loop: true,
+              volume: 0.45,
+            },
+            {
               id: "cue-bg-001",
               type: "background.set",
               atMs: 0,
