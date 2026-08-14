@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "Default capability for the NeoArchive main window",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-simple-fullscreen",
+    "core:window:allow-is-fullscreen"
+  ]
 }

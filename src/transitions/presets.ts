@@ -22,4 +22,5 @@ export const transitionPresets: Array<{
     label: "时序轮盘",
     description: "由真实本地日期与时间驱动的双向曲面档案轮",
   },
+  { value: "none", label: "无过渡", description: "立刻切到下一幕，不播放过场" },
 ];

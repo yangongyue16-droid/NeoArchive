@@ -1,40 +1,55 @@
-import { describe, expect, it } from "vite-plus/test";
-import { resolveAudio, resolveBackground, resolveCharacter } from "./catalog";
+import { afterEach, describe, expect, it } from "vite-plus/test";
+import { resolveAudio, resolveBackgroundMedia, resolveDialogueFont } from "./catalog";
+import { registerUserAssetForTests, resetUserAssetsForTests } from "./userAssets";
 
 describe("asset catalog", () => {
-  it("keeps the curated classroom background", () => {
-    expect(resolveBackground("background/classroom")).toBe(
-      "/__research/curated/backgrounds/BG_ClassRoom.jpg",
-    );
+  afterEach(() => {
+    resetUserAssetsForTests();
   });
 
-  it("maps pack background ids onto the public story tree", () => {
-    expect(resolveBackground("background/BG_OperaHouseStage")).toBe(
-      "/__research/ba-public-pack/ba-all-data/UIs/03_Scenario/01_Background/BG_OperaHouseStage.jpg",
-    );
+  it("resolves built-in backgrounds as images", () => {
+    expect(resolveBackgroundMedia("background/classroom")).toEqual({
+      url: "/__research/curated/backgrounds/BG_ClassRoom.jpg",
+      kind: "image",
+    });
   });
 
-  it("sends CH/NP spines to the Spine 4.2 tree", () => {
-    expect(resolveCharacter("character/ch0274")).toBe(
-      "/__research/ba-public-pack/ba-all-data-spine42/spine/ch0274_spr/ch0274_spr.skel",
-    );
+  it("resolves imported image and video backgrounds", () => {
+    const imageRef = registerUserAssetForTests({
+      id: "bg-image",
+      name: "room.png",
+      kind: "image",
+      mimeType: "image/png",
+      blob: new Blob(["image"], { type: "image/png" }),
+    });
+    const videoRef = registerUserAssetForTests({
+      id: "bg-video",
+      name: "city.mp4",
+      kind: "video",
+      mimeType: "video/mp4",
+      blob: new Blob(["video"], { type: "video/mp4" }),
+    });
+
+    expect(resolveBackgroundMedia(imageRef)?.kind).toBe("image");
+    expect(resolveBackgroundMedia(videoRef)?.kind).toBe("video");
+    expect(resolveBackgroundMedia(imageRef)?.url).toMatch(/^blob:/);
   });
 
-  it("keeps named story spines on the main ba-all-data tree", () => {
-    expect(resolveCharacter("character/hasumi")).toBe(
-      "/__research/ba-public-pack/ba-all-data/spine/hasumi_spr/hasumi_spr.skel",
-    );
+  it("resolves imported voice clips", () => {
+    const voiceRef = registerUserAssetForTests({
+      id: "voice-01",
+      name: "line.wav",
+      kind: "audio",
+      mimeType: "audio/wav",
+      blob: new Blob(["audio"], { type: "audio/wav" }),
+    });
+
+    expect(resolveAudio(voiceRef)).toMatch(/^blob:/);
+    expect(resolveAudio("audio/missing")).toBeNull();
   });
 
-  it("maps BGM refs onto local ogg files", () => {
-    expect(resolveAudio("audio/bgm/Theme_01")).toBe(
-      "/__research/ba-public-pack/ba-all-data/Audio/BGM/Theme_01.ogg",
-    );
-  });
-
-  it("maps story SE refs onto local wav files", () => {
-    expect(resolveAudio("audio/sfx/SE_Run_05")).toBe(
-      "/__research/ba-public-pack/ba-all-data/Audio/Sound/SE_Run_05.wav",
-    );
+  it("uses Blueaka as the built-in dialogue font", () => {
+    expect(resolveDialogueFont(undefined)).toEqual({ family: "Blueaka" });
+    expect(resolveDialogueFont("font/blueaka")).toEqual({ family: "Blueaka" });
   });
 });

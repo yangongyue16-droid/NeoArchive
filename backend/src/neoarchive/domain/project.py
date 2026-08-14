@@ -71,6 +71,8 @@ class DialogueShowCue(BaseCue):
     text: str
     typing_cps: int = Field(default=36, gt=0)
     wait_for_advance: bool = True
+    voice_asset_ref: str | None = None
+    voice_start_ms: int | None = Field(default=None, ge=0)
 
 
 class AudioPlayCue(BaseCue):
@@ -122,8 +124,9 @@ class TransitionPlayCue(BaseCue):
         "fade-black",
         "fade-white",
         "halo-iris",
+        "none",
     ]
-    duration_ms: int = Field(default=900, ge=240)
+    duration_ms: int = Field(default=900, ge=0)
     hold_ms: int = Field(default=0, ge=0)
     intensity: float = Field(default=1, ge=0.1, le=2)
     time_wheel: TimeWheelConfig | None = None
@@ -144,12 +147,27 @@ StoryCue = Annotated[
 ]
 
 
+class SceneExitTransition(SchemaModel):
+    preset: Literal[
+        "archive-shutter",
+        "chromatic-slice",
+        "fade-black",
+        "fade-white",
+        "halo-iris",
+        "none",
+    ] = "none"
+    duration_ms: int = Field(default=900, ge=0)
+    hold_ms: int = Field(default=0, ge=0)
+    intensity: float = Field(default=1, ge=0.1, le=2)
+
+
 class Scene(SchemaModel):
     id: str
     title: str
     kind: Literal["dialogue", "direction", "choice"]
     auto_advance_ms: int | None = Field(default=None, ge=250)
     next_scene_id: str | None = None
+    exit_transition: SceneExitTransition | None = None
     cues: list[StoryCue]
 
 
@@ -159,6 +177,33 @@ class Chapter(SchemaModel):
     scenes: list[Scene]
 
 
+class StageSettings(SchemaModel):
+    aspect: Literal["16:9", "21:9", "4:3", "3:2", "1:1", "9:16", "custom"] = "16:9"
+    width: int = Field(default=1920, ge=320, le=7680)
+    height: int = Field(default=1080, ge=240, le=4320)
+    background_fit: Literal["contain", "cover", "fill"] = "contain"
+
+
+class DialogueRegionStyle(SchemaModel):
+    font_size: float = Field(default=24, ge=8, le=120)
+    x: float = Field(default=8, ge=0, le=100)
+    y: float = Field(default=16, ge=0, le=100)
+
+
+class DialogueRuleStyle(SchemaModel):
+    x: float = Field(default=8, ge=0, le=100)
+    y: float = Field(default=36, ge=0, le=100)
+    width: float = Field(default=72, ge=4, le=100)
+
+
+class DialogueBoxSettings(SchemaModel):
+    height_percent: float = Field(default=46, ge=18, le=80)
+    speaker: DialogueRegionStyle = Field(default_factory=DialogueRegionStyle)
+    subtitle: DialogueRegionStyle = Field(default_factory=DialogueRegionStyle)
+    text: DialogueRegionStyle = Field(default_factory=DialogueRegionStyle)
+    rule: DialogueRuleStyle = Field(default_factory=DialogueRuleStyle)
+
+
 class StoryProject(SchemaModel):
     schema_version: Literal[1]
     project_id: str
@@ -166,4 +211,7 @@ class StoryProject(SchemaModel):
     entry_scene_id: str
     created_at: datetime
     updated_at: datetime
+    dialogue_font_ref: str | None = None
+    stage: StageSettings | None = None
+    dialogue_box: DialogueBoxSettings | None = None
     chapters: list[Chapter]

@@ -21,8 +21,7 @@
     "typecheck:api": "uv run --project backend pyright backend/src backend/tests",
     "api:schema": "uv run --project backend python backend/scripts/export_openapi.py",
     "typecheck": "vp check --no-fmt --no-lint",
-    "api:generate": "orval --config orval.config.ts",
-    "assets:sync": "python3 scripts/sync_ba_public_pack.py"
+    "api:generate": "orval --config orval.config.ts"
   },
   "dependencies": {
     "@esotericsoftware/spine-pixi-v8": "^4.2.118",
@@ -58,5 +57,8 @@
   "engines": {
     "node": ">=24 <26"
   },
-  "packageManager": "npm@11.12.1"
+  "packageManager": "npm@11.12.1",
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
 }

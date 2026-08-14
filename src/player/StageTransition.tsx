@@ -18,6 +18,7 @@ const transitionCoverRatio: Record<RuntimeTransition["preset"], number> = {
   "archive-shutter": 0.38,
   "halo-iris": 0.48,
   "chromatic-slice": 0.28,
+  none: 0,
 };
 
 const wheelRadius = 136;
@@ -118,7 +119,10 @@ export function StageTransition({ onComplete, onCover, transition }: StageTransi
       if (!root) {
         return;
       }
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      if (
+        transition.preset === "none" ||
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
         gsap.set(root, { autoAlpha: 0 });
         onCover?.(transition.instanceId);
         onComplete?.(transition.instanceId);

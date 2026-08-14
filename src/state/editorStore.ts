@@ -5,11 +5,16 @@ import {
   findScene,
   getAllScenes,
   type CharacterTransform,
+  type DialogueBoxSettings,
+  type DialogueRegionStyle,
   type Scene,
+  type SceneExitTransition,
+  type StageSettings,
   type StoryCue,
   type StoryProject,
   type TimeWheelConfig,
 } from "../project-schema/types";
+import { normalizeDialogueBox, normalizeStageSettings } from "../project-schema/stage";
 
 export type AddableCueType =
   | "audio.play"
@@ -39,6 +44,8 @@ export type EditableCuePatch = Partial<{
   transform: CharacterTransform;
   transitionMs: number;
   typingCps: number;
+  voiceAssetRef?: string;
+  voiceStartMs?: number;
   volume: number;
   waitForAdvance: boolean;
 }>;
@@ -57,9 +64,12 @@ type EditorState = {
   addScene: () => void;
   renameScene: (sceneId: string, title: string) => void;
   setSceneAutoAdvance: (sceneId: string, autoAdvanceMs?: number) => void;
+  setSceneExit: (
+    sceneId: string,
+    patch: { nextSceneId?: string | null; exitTransition?: SceneExitTransition },
+  ) => void;
   deleteScene: (sceneId: string) => void;
   addCue: (sceneId: string, type: AddableCueType) => void;
-  addAudioCue: (sceneId: string, assetRef: string, channel: "bgm" | "voice" | "sfx") => void;
   updateCue: (sceneId: string, cueId: string, patch: EditableCuePatch, field: string) => void;
   deleteCue: (sceneId: string, cueId: string) => void;
   duplicateCue: (sceneId: string, cueId: string) => void;
@@ -72,6 +82,16 @@ type EditorState = {
   ) => void;
   loadProject: (project: StoryProject) => void;
   markSaved: () => void;
+  setDialogueFont: (dialogueFontRef?: string) => void;
+  setStageSettings: (stage: Partial<StageSettings>) => void;
+  setDialogueBox: (
+    dialogueBox: Partial<Omit<DialogueBoxSettings, "speaker" | "subtitle" | "text" | "rule">> & {
+      speaker?: Partial<DialogueRegionStyle>;
+      subtitle?: Partial<DialogueRegionStyle>;
+      text?: Partial<DialogueRegionStyle>;
+      rule?: Partial<DialogueBoxSettings["rule"]>;
+    },
+  ) => void;
   undo: () => void;
   redo: () => void;
 };
@@ -170,7 +190,7 @@ function createCue(type: AddableCueType, atMs: number): StoryCue {
         id: createId("cue-audio"),
         type,
         atMs,
-        assetRef: "audio/cc0/tozan-background-music-1.ogg",
+        assetRef: "audio/your-file",
         channel: "bgm",
         loop: true,
         volume: 0.8,
@@ -262,6 +282,21 @@ export const useEditorStore = create<EditorState>((set) => ({
       scene.autoAdvanceMs = autoAdvanceMs;
       return commitProject(state, project, `scene:${sceneId}:autoAdvanceMs`);
     }),
+  setSceneExit: (sceneId, patch) =>
+    set((state) => {
+      const project = structuredClone(state.project);
+      const scene = findScene(project, sceneId);
+      if (!scene) {
+        return state;
+      }
+      if (patch.nextSceneId !== undefined) {
+        scene.nextSceneId = patch.nextSceneId ?? undefined;
+      }
+      if (patch.exitTransition) {
+        scene.exitTransition = patch.exitTransition;
+      }
+      return commitProject(state, project, `scene:${sceneId}:exit`);
+    }),
   deleteScene: (sceneId) =>
     set((state) => {
       const scenes = getAllScenes(state.project);
@@ -311,24 +346,6 @@ export const useEditorStore = create<EditorState>((set) => ({
       const committed = commitProject(state, project, null);
       return { ...committed, selectedCueId: cue.id };
     }),
-  addAudioCue: (sceneId, assetRef, channel) =>
-    set((state) => {
-      const project = structuredClone(state.project);
-      const scene = findScene(project, sceneId);
-      if (!scene) {
-        return state;
-      }
-      const cue = createCue("audio.play", scene.cues.length * 500);
-      if (cue.type !== "audio.play") {
-        return state;
-      }
-      cue.assetRef = assetRef;
-      cue.channel = channel;
-      cue.loop = channel === "bgm";
-      scene.cues.push(cue);
-      const committed = commitProject(state, project, null);
-      return { ...committed, selectedCueId: cue.id };
-    }),
   updateCue: (sceneId, cueId, patch, field) =>
     set((state) => {
       const project = structuredClone(state.project);
@@ -338,6 +355,14 @@ export const useEditorStore = create<EditorState>((set) => ({
         return state;
       }
       Object.assign(cue, patch);
+      if (cue.type === "dialogue.show") {
+        if ("voiceAssetRef" in patch && patch.voiceAssetRef === undefined) {
+          delete cue.voiceAssetRef;
+        }
+        if ("voiceStartMs" in patch && patch.voiceStartMs === undefined) {
+          delete cue.voiceStartMs;
+        }
+      }
       return commitProject(state, project, `cue:${cueId}:${field}`);
     }),
   deleteCue: (sceneId, cueId) =>
@@ -406,6 +431,40 @@ export const useEditorStore = create<EditorState>((set) => ({
       const insertionIndex = adjustedTargetIndex + (edge === "after" ? 1 : 0);
       scene.cues.splice(insertionIndex, 0, movedCue);
       return commitProject(state, project, null);
+    }),
+  setDialogueFont: (dialogueFontRef) =>
+    set((state) => {
+      if (state.project.dialogueFontRef === dialogueFontRef) {
+        return state;
+      }
+      return commitProject(state, { ...state.project, dialogueFontRef }, "project:dialogueFont");
+    }),
+  setStageSettings: (stage) =>
+    set((state) => {
+      const next = normalizeStageSettings({ ...state.project.stage, ...stage });
+      const current = normalizeStageSettings(state.project.stage);
+      if (
+        current.aspect === next.aspect &&
+        current.width === next.width &&
+        current.height === next.height &&
+        current.backgroundFit === next.backgroundFit
+      ) {
+        return state;
+      }
+      return commitProject(state, { ...state.project, stage: next }, "project:stage");
+    }),
+  setDialogueBox: (dialogueBox) =>
+    set((state) => {
+      const current = normalizeDialogueBox(state.project.dialogueBox);
+      const next = normalizeDialogueBox({
+        ...current,
+        ...dialogueBox,
+        speaker: { ...current.speaker, ...dialogueBox.speaker },
+        subtitle: { ...current.subtitle, ...dialogueBox.subtitle },
+        text: { ...current.text, ...dialogueBox.text },
+        rule: { ...current.rule, ...dialogueBox.rule },
+      });
+      return commitProject(state, { ...state.project, dialogueBox: next }, "project:dialogueBox");
     }),
   loadProject: (project) => {
     persistImmediately(project);

@@ -1,15 +1,26 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { BackendApiError, openProject, saveProject, type ProjectDocument } from "../api/client";
-import { useAssetCatalog } from "../assets/catalog";
 import { useBackendHealth } from "../api/useBackendHealth";
+import { builtInDialogueFont } from "../assets/catalog";
+import { getUserAsset } from "../assets/userAssets";
+import { useDialogueFont } from "../assets/useDialogueFont";
+import { LocalAssetPicker } from "./LocalAssetPicker";
 import { downloadProject, parseProjectFile } from "../project-schema/projectFile";
+import {
+  backgroundFitOptions,
+  normalizeDialogueBox,
+  normalizeStageSettings,
+  stagePresets,
+  stageSummary,
+} from "../project-schema/stage";
+import type { BackgroundFit } from "../project-schema/types";
+import type { DialogueRegionStyle } from "../project-schema/types";
 import { findScene, getAllScenes } from "../project-schema/types";
 import { StoryStage } from "../player/StoryStage";
 import { useStoryRuntime } from "../runtime/useStoryRuntime";
 import { useEditorStore } from "../state/editorStore";
+import { transitionPresets } from "../transitions/presets";
 import { CueInspector } from "./CueInspector";
-import { AudioLibrary, type AudioLibraryMode } from "./AudioLibrary";
-import { VisualAssetLibrary } from "./VisualAssetLibrary";
 import { ScriptTimeline } from "./ScriptTimeline";
 
 type ThemeMode = "day" | "night";
@@ -27,29 +38,27 @@ export function EditorApp() {
   const addScene = useEditorStore((state) => state.addScene);
   const renameScene = useEditorStore((state) => state.renameScene);
   const setSceneAutoAdvance = useEditorStore((state) => state.setSceneAutoAdvance);
+  const setSceneExit = useEditorStore((state) => state.setSceneExit);
   const deleteScene = useEditorStore((state) => state.deleteScene);
   const addCue = useEditorStore((state) => state.addCue);
-  const addAudioCue = useEditorStore((state) => state.addAudioCue);
   const updateCue = useEditorStore((state) => state.updateCue);
   const deleteCue = useEditorStore((state) => state.deleteCue);
   const duplicateCue = useEditorStore((state) => state.duplicateCue);
   const moveCue = useEditorStore((state) => state.moveCue);
   const reorderCue = useEditorStore((state) => state.reorderCue);
   const loadProject = useEditorStore((state) => state.loadProject);
+  const setDialogueFont = useEditorStore((state) => state.setDialogueFont);
+  const setStageSettings = useEditorStore((state) => state.setStageSettings);
+  const setDialogueBox = useEditorStore((state) => state.setDialogueBox);
   const markSaved = useEditorStore((state) => state.markSaved);
   const undo = useEditorStore((state) => state.undo);
   const redo = useEditorStore((state) => state.redo);
   const { data: backendHealth } = useBackendHealth();
-  const { audioOptions, backgroundOptions, characterOptions, pack } = useAssetCatalog();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backendDocumentRef = useRef<Pick<ProjectDocument, "project" | "revision"> | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [projectBusy, setProjectBusy] = useState(false);
   const [workMode, setWorkMode] = useState<WorkMode>("script");
-  const [audioLibraryMode, setAudioLibraryMode] = useState<AudioLibraryMode | null>(null);
-  const [visualLibraryKind, setVisualLibraryKind] = useState<"background" | "character" | null>(
-    null,
-  );
   const [theme, setTheme] = useState<ThemeMode>(() =>
     window.localStorage.getItem("neoarchive-theme") === "day" ? "day" : "night",
   );
@@ -57,6 +66,10 @@ export function EditorApp() {
   const selectedCue =
     activeScene.cues.find((cue) => cue.id === selectedCueId) ?? activeScene.cues[0] ?? null;
   const { playback, runtime } = useStoryRuntime(project, activeScene.id, selectedCue?.id);
+  const customFont = project.dialogueFontRef ? getUserAsset(project.dialogueFontRef) : null;
+  const stage = normalizeStageSettings(project.stage);
+  const dialogueBox = normalizeDialogueBox(project.dialogueBox);
+  useDialogueFont(project.dialogueFontRef);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -142,26 +155,19 @@ export function EditorApp() {
             onClick={() => setWorkMode("script")}
             type="button"
           >
-            剧本
+            幕前
           </button>
           <button
             className={workMode === "stage" ? "is-active" : ""}
             onClick={() => setWorkMode("stage")}
             type="button"
           >
-            舞台
+            幕后
           </button>
           <button disabled type="button">
             流程
           </button>
-          <button
-            onClick={() =>
-              setVisualLibraryKind(
-                selectedCue?.type === "character.enter" ? "character" : "background",
-              )
-            }
-            type="button"
-          >
+          <button disabled type="button">
             素材
           </button>
           <button disabled type="button">
@@ -246,15 +252,10 @@ export function EditorApp() {
                 ? `Python · ${backendHealth.database}`
                 : "Web 原型"}
           </span>
-          <span className="status-pill">
-            {pack
-              ? `素材 ${pack.stats.backgrounds}/${pack.stats.characters}/${pack.stats.audio}`
-              : "素材 抽样"}
-          </span>
           <button
             className="button button-primary"
             onClick={() => {
-              window.location.assign("/player");
+              window.location.hash = "#/player";
             }}
             type="button"
           >
@@ -280,22 +281,6 @@ export function EditorApp() {
               ＋
             </button>
           </div>
-          <nav className="scene-list">
-            {getAllScenes(project).map((scene, index) => (
-              <button
-                className={`scene-item ${scene.id === activeScene.id ? "is-active" : ""}`}
-                key={scene.id}
-                onClick={() => selectScene(scene.id)}
-                type="button"
-              >
-                <span className="scene-index">{String(index + 1).padStart(2, "0")}</span>
-                <span className="scene-copy">
-                  <strong>{scene.title}</strong>
-                  <small>{scene.cues.length} cues</small>
-                </span>
-              </button>
-            ))}
-          </nav>
           <div className="scene-editor">
             <label>
               <span>场景名称</span>
@@ -331,23 +316,183 @@ export function EditorApp() {
               />
               <small>留空则按文字长度自动计算</small>
             </label>
-            <button
-              className="danger-button"
-              disabled={getAllScenes(project).length <= 1}
-              onClick={() => deleteScene(activeScene.id)}
-              type="button"
-            >
-              删除当前场景
-            </button>
+            <label>
+              <span>下一场</span>
+              <select
+                onChange={(event) =>
+                  setSceneExit(activeScene.id, {
+                    nextSceneId: event.currentTarget.value || null,
+                  })
+                }
+                value={activeScene.nextSceneId ?? ""}
+              >
+                <option value="">结束</option>
+                {getAllScenes(project)
+                  .filter((scene) => scene.id !== activeScene.id)
+                  .map((scene) => (
+                    <option key={scene.id} value={scene.id}>
+                      {scene.title}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            {activeScene.nextSceneId ? (
+              <label>
+                <span>切到下一场</span>
+                <select
+                  onChange={(event) => {
+                    const preset = event.currentTarget
+                      .value as (typeof transitionPresets)[number]["value"];
+                    setSceneExit(activeScene.id, {
+                      exitTransition: {
+                        preset,
+                        durationMs:
+                          preset === "none" ? 0 : preset === "chromatic-slice" ? 1800 : 900,
+                        holdMs: preset === "none" ? 0 : 120,
+                        intensity: 1,
+                      },
+                    });
+                  }}
+                  value={activeScene.exitTransition?.preset ?? "none"}
+                >
+                  {transitionPresets.map((preset) => (
+                    <option key={preset.value} value={preset.value}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {workMode === "script" ? (
+              <button
+                className="danger-button"
+                disabled={getAllScenes(project).length <= 1}
+                onClick={() => deleteScene(activeScene.id)}
+                type="button"
+              >
+                删除当前场景
+              </button>
+            ) : (
+              <>
+                <label>
+                  <span>剧情字体</span>
+                  <select
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      if (value !== "__custom__") {
+                        setDialogueFont(value);
+                      }
+                    }}
+                    value={
+                      !project.dialogueFontRef ||
+                      project.dialogueFontRef === builtInDialogueFont.value
+                        ? builtInDialogueFont.value
+                        : "__custom__"
+                    }
+                  >
+                    <option value={builtInDialogueFont.value}>{builtInDialogueFont.label}</option>
+                    {customFont ? (
+                      <option value="__custom__">本地字体 · {customFont.name}</option>
+                    ) : null}
+                  </select>
+                </label>
+                <LocalAssetPicker
+                  accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
+                  allowed={["font"]}
+                  buttonLabel="选择本地字体"
+                  onImported={(assetRef) => setDialogueFont(assetRef)}
+                />
+                <label>
+                  <span>画面比例</span>
+                  <select
+                    onChange={(event) =>
+                      setStageSettings({
+                        aspect: event.currentTarget.value as (typeof stagePresets)[number]["value"],
+                      })
+                    }
+                    value={stage.aspect}
+                  >
+                    {stagePresets.map((preset) => (
+                      <option key={preset.value} value={preset.value}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="field-row stage-size-fields">
+                  <label>
+                    <span>宽</span>
+                    <input
+                      min={320}
+                      onChange={(event) =>
+                        setStageSettings({
+                          aspect: "custom",
+                          width: Number(event.currentTarget.value),
+                        })
+                      }
+                      type="number"
+                      value={stage.width}
+                    />
+                  </label>
+                  <label>
+                    <span>高</span>
+                    <input
+                      min={240}
+                      onChange={(event) =>
+                        setStageSettings({
+                          aspect: "custom",
+                          height: Number(event.currentTarget.value),
+                        })
+                      }
+                      type="number"
+                      value={stage.height}
+                    />
+                  </label>
+                </div>
+                <label>
+                  <span>背景填充</span>
+                  <select
+                    onChange={(event) =>
+                      setStageSettings({
+                        backgroundFit: event.currentTarget.value as BackgroundFit,
+                      })
+                    }
+                    value={stage.backgroundFit ?? "contain"}
+                  >
+                    {backgroundFitOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
           </div>
+          <nav className="scene-list">
+            {getAllScenes(project).map((scene, index) => (
+              <button
+                className={`scene-item ${scene.id === activeScene.id ? "is-active" : ""}`}
+                key={scene.id}
+                onClick={() => selectScene(scene.id)}
+                type="button"
+              >
+                <span className="scene-index">{String(index + 1).padStart(2, "0")}</span>
+                <span className="scene-copy">
+                  <strong>{scene.title}</strong>
+                  <small>{scene.cues.length} cues</small>
+                </span>
+              </button>
+            ))}
+          </nav>
         </aside>
 
         <section className="stage-column">
           <div className="stage-toolbar">
             <span>
-              16:9 即时预览 · {playback.status} · {selectedCue?.type ?? "empty"}
+              {stageSummary(stage)} · {playback.status} · {selectedCue?.type ?? "empty"}
             </span>
-            <div className="toolbar-group" aria-label="舞台工具">
+            <div className="toolbar-group" aria-label="幕后工具">
               <span className="live-preview-badge">LIVE</span>
               <button
                 onClick={() => runtime.preview(activeScene.id, selectedCue?.id, true)}
@@ -358,25 +503,24 @@ export function EditorApp() {
               <button onClick={() => runtime.start(activeScene.id)} type="button">
                 播放场景
               </button>
-              <button onClick={() => setAudioLibraryMode("music")} type="button">
-                音乐库
-              </button>
-              <button onClick={() => setAudioLibraryMode("sfx")} type="button">
-                音效库
-              </button>
             </div>
           </div>
 
-          <StoryStage
-            instantText
-            onAdvance={() => runtime.advance()}
-            onBackgroundTransitionComplete={runtime.notifyBackgroundTransitionCompleted}
-            onCharacterEnterComplete={runtime.notifyCharacterEnterCompleted}
-            onChoose={(optionId) => runtime.choose(optionId)}
-            onTransitionComplete={runtime.notifyTransitionCompleted}
-            onTransitionCover={runtime.notifyTransitionCovered}
-            playback={playback}
-          />
+          <div className="stage-fit">
+            <StoryStage
+              instantText
+              layoutEdit={workMode === "stage"}
+              stage={stage}
+              dialogueBox={dialogueBox}
+              onDialogueBoxChange={workMode === "stage" ? setDialogueBox : undefined}
+              onBackgroundTransitionComplete={runtime.notifyBackgroundTransitionCompleted}
+              onCharacterEnterComplete={runtime.notifyCharacterEnterCompleted}
+              onChoose={(optionId) => runtime.choose(optionId)}
+              onTransitionComplete={runtime.notifyTransitionCompleted}
+              onTransitionCover={runtime.notifyTransitionCovered}
+              playback={playback}
+            />
+          </div>
 
           <ScriptTimeline
             onAdd={(type) => addCue(activeScene.id, type)}
@@ -389,86 +533,162 @@ export function EditorApp() {
             onSelect={selectCue}
             scene={activeScene}
             selectedCueId={selectedCue?.id ?? null}
+            onUpdateCue={(cueId, patch, field) => updateCue(activeScene.id, cueId, patch, field)}
           />
         </section>
 
         <aside className="panel inspector" aria-label="属性面板">
-          <CueInspector
-            cue={selectedCue}
-            onOpenLibrary={(kind) => {
-              if (kind === "audio") {
-                setAudioLibraryMode(
-                  selectedCue?.type === "audio.play" && selectedCue.channel === "sfx"
-                    ? "sfx"
-                    : "music",
+          {workMode === "stage" ? (
+            <>
+              <div className="panel-heading inspector-heading">
+                <div>
+                  <p className="eyebrow">BACKSTAGE · DIALOGUE</p>
+                  <h2>对话框</h2>
+                </div>
+              </div>
+              <label>
+                <span>对话框高度（%）</span>
+                <input
+                  max={80}
+                  min={18}
+                  onChange={(event) =>
+                    setDialogueBox({ heightPercent: Number(event.currentTarget.value) })
+                  }
+                  type="range"
+                  value={dialogueBox.heightPercent}
+                />
+                <small>{dialogueBox.heightPercent}%</small>
+              </label>
+              <div className="dialogue-region-editor">
+                <strong>分割线</strong>
+                <div className="field-row stage-size-fields">
+                  <label>
+                    <span>X</span>
+                    <input
+                      max={100}
+                      min={0}
+                      onChange={(event) =>
+                        setDialogueBox({
+                          rule: { ...dialogueBox.rule, x: Number(event.currentTarget.value) },
+                        })
+                      }
+                      step={0.1}
+                      type="number"
+                      value={dialogueBox.rule.x}
+                    />
+                  </label>
+                  <label>
+                    <span>Y</span>
+                    <input
+                      max={100}
+                      min={0}
+                      onChange={(event) =>
+                        setDialogueBox({
+                          rule: { ...dialogueBox.rule, y: Number(event.currentTarget.value) },
+                        })
+                      }
+                      step={0.1}
+                      type="number"
+                      value={dialogueBox.rule.y}
+                    />
+                  </label>
+                </div>
+                <label>
+                  <span>长度</span>
+                  <input
+                    max={100}
+                    min={4}
+                    onChange={(event) =>
+                      setDialogueBox({
+                        rule: { ...dialogueBox.rule, width: Number(event.currentTarget.value) },
+                      })
+                    }
+                    step={0.1}
+                    type="number"
+                    value={dialogueBox.rule.width}
+                  />
+                </label>
+              </div>
+              <button
+                className="button button-secondary"
+                onClick={() => {
+                  setDialogueBox(dialogueBox);
+                  setNotice("已将当前对话框样式应用到全部场景");
+                }}
+                type="button"
+              >
+                全部应用
+              </button>
+              {(
+                [
+                  ["speaker", "说话人"],
+                  ["subtitle", "身份"],
+                  ["text", "正文"],
+                ] as const
+              ).map(([key, label]) => {
+                const region = dialogueBox[key];
+                const updateRegion = (patch: Partial<DialogueRegionStyle>) =>
+                  setDialogueBox({ [key]: { ...region, ...patch } });
+                return (
+                  <div className="dialogue-region-editor" key={key}>
+                    <strong>{label}</strong>
+                    <label>
+                      <span>字号</span>
+                      <input
+                        max={120}
+                        min={8}
+                        onChange={(event) =>
+                          updateRegion({ fontSize: Number(event.currentTarget.value) })
+                        }
+                        step={0.1}
+                        type="number"
+                        value={region.fontSize}
+                      />
+                    </label>
+                    <div className="field-row stage-size-fields">
+                      <label>
+                        <span>X</span>
+                        <input
+                          max={100}
+                          min={0}
+                          onChange={(event) =>
+                            updateRegion({ x: Number(event.currentTarget.value) })
+                          }
+                          step={0.1}
+                          type="number"
+                          value={region.x}
+                        />
+                      </label>
+                      <label>
+                        <span>Y</span>
+                        <input
+                          max={100}
+                          min={0}
+                          onChange={(event) =>
+                            updateRegion({ y: Number(event.currentTarget.value) })
+                          }
+                          step={0.1}
+                          type="number"
+                          value={region.y}
+                        />
+                      </label>
+                    </div>
+                  </div>
                 );
-              } else {
-                setVisualLibraryKind(kind);
-              }
-            }}
-            onUpdate={(patch, field) => {
-              if (selectedCue) {
-                updateCue(activeScene.id, selectedCue.id, patch, field);
-              }
-            }}
-          />
+              })}
+            </>
+          ) : (
+            <CueInspector
+              cue={selectedCue}
+              onUpdate={(patch, field) => {
+                if (selectedCue) {
+                  updateCue(activeScene.id, selectedCue.id, patch, field);
+                }
+              }}
+            />
+          )}
         </aside>
       </section>
-      {audioLibraryMode ? (
-        <AudioLibrary
-          mode={audioLibraryMode}
-          onClose={() => setAudioLibraryMode(null)}
-          onUse={(assetRef, channel) => {
-            if (selectedCue?.type === "audio.play") {
-              updateCue(activeScene.id, selectedCue.id, { assetRef, channel }, "audioLibrary");
-            } else {
-              addAudioCue(activeScene.id, assetRef, channel);
-            }
-            setAudioLibraryMode(null);
-          }}
-          options={audioOptions}
-          selectedAssetRef={selectedCue?.type === "audio.play" ? selectedCue.assetRef : undefined}
-        />
-      ) : null}
-      {visualLibraryKind ? (
-        <VisualAssetLibrary
-          kind={visualLibraryKind}
-          onClose={() => setVisualLibraryKind(null)}
-          onUse={(assetRef) => {
-            if (visualLibraryKind === "background") {
-              if (selectedCue?.type === "background.set") {
-                updateCue(activeScene.id, selectedCue.id, { assetRef }, "visualLibrary");
-              } else {
-                addCue(activeScene.id, "background.set");
-                const addedCueId = useEditorStore.getState().selectedCueId;
-                if (addedCueId)
-                  updateCue(activeScene.id, addedCueId, { assetRef }, "visualLibrary");
-              }
-            } else if (selectedCue?.type === "character.enter") {
-              updateCue(
-                activeScene.id,
-                selectedCue.id,
-                { characterRef: assetRef },
-                "visualLibrary",
-              );
-            } else {
-              addCue(activeScene.id, "character.enter");
-              const addedCueId = useEditorStore.getState().selectedCueId;
-              if (addedCueId)
-                updateCue(activeScene.id, addedCueId, { characterRef: assetRef }, "visualLibrary");
-            }
-            setVisualLibraryKind(null);
-          }}
-          options={visualLibraryKind === "background" ? backgroundOptions : characterOptions}
-          selectedAssetRef={
-            visualLibraryKind === "background" && selectedCue?.type === "background.set"
-              ? selectedCue.assetRef
-              : visualLibraryKind === "character" && selectedCue?.type === "character.enter"
-                ? selectedCue.characterRef
-                : undefined
-          }
-        />
-      ) : null}
     </main>
   );
 }

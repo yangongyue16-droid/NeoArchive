@@ -87,6 +87,47 @@ describe("StoryRuntime", () => {
     });
   });
 
+  it("plays a scene exit transition before entering the next scene", () => {
+    const project = structuredClone(sampleProject);
+    const firstScene = project.chapters[0]?.scenes[0];
+    if (!firstScene) {
+      throw new Error("Expected first scene fixture");
+    }
+    firstScene.exitTransition = {
+      preset: "fade-black",
+      durationMs: 900,
+      holdMs: 80,
+      intensity: 1,
+    };
+
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+    completeStageActions(runtime);
+    runtime.advance();
+    runtime.advance();
+
+    const transitionInstanceId = runtime.getSnapshot().transition?.instanceId;
+    if (transitionInstanceId === undefined) {
+      throw new Error("Expected exit transition instance");
+    }
+
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: "playing",
+      sceneId: "scene-001",
+      dialogue: null,
+      transition: { preset: "fade-black" },
+    });
+
+    runtime.notifyTransitionCovered(transitionInstanceId);
+    runtime.notifyTransitionCompleted(transitionInstanceId);
+    completeStageActions(runtime);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: "waiting_user",
+      sceneId: "scene-002",
+      dialogue: { cueId: "cue-dialogue-002" },
+    });
+  });
+
   it("plays a terminal transition before entering the next scene", () => {
     const project = structuredClone(sampleProject);
     const firstScene = project.chapters[0]?.scenes[0];

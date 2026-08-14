@@ -1,5 +1,4 @@
 /research-assets/
-/artifacts/
 /node_modules/
 /dist/
 /backend/.venv/
@@ -9,13 +8,11 @@
 /backend/dist/
 /backend/build/
 /backend/*.spec
-/.ruff_cache/
-/.pytest_cache/
 /.neoarchive-dev/
 /src-tauri/target/
 /src-tauri/binaries/
+/src-tauri/gen/
+/artifacts/
 __pycache__/
-*.pyc
-*.tsbuildinfo
-.DS_Store
+*.py[cod]
 *.local

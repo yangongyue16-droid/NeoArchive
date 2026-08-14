@@ -7,6 +7,15 @@ export const sampleProject: StoryProject = {
   entrySceneId: "scene-001",
   createdAt: "2026-08-13T00:00:00Z",
   updatedAt: "2026-08-13T00:00:00Z",
+  dialogueFontRef: "font/blueaka",
+  stage: { aspect: "16:9", width: 1920, height: 1080, backgroundFit: "contain" },
+  dialogueBox: {
+    heightPercent: 51,
+    speaker: { fontSize: 48, x: 9.7, y: 41.68 },
+    subtitle: { fontSize: 40, x: 18.61, y: 39.97 },
+    text: { fontSize: 33, x: 9.64, y: 58.67 },
+    rule: { x: 9.54, y: 55.17, width: 72 },
+  },
   chapters: [
     {
       id: "chapter-001",
@@ -18,15 +27,6 @@ export const sampleProject: StoryProject = {
           kind: "dialogue",
           nextSceneId: "scene-002",
           cues: [
-            {
-              id: "cue-audio-001",
-              type: "audio.play",
-              atMs: 0,
-              assetRef: "audio/cc0/tozan-background-music-1.ogg",
-              channel: "bgm",
-              loop: true,
-              volume: 0.45,
-            },
             {
               id: "cue-bg-001",
               type: "background.set",

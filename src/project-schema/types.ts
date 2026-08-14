@@ -45,6 +45,8 @@ export type DialogueShowCue = BaseCue & {
   text: string;
   typingCps: number;
   waitForAdvance: boolean;
+  voiceAssetRef?: string;
+  voiceStartMs?: number;
 };
 
 export type AudioPlayCue = BaseCue & {
@@ -83,7 +85,8 @@ export type StageTransitionPreset =
   | "chromatic-slice"
   | "fade-black"
   | "fade-white"
-  | "halo-iris";
+  | "halo-iris"
+  | "none";
 
 export type TimeWheelConfig = {
   source: "system" | "custom";
@@ -116,12 +119,20 @@ export type StoryCue =
   | TransitionPlayCue
   | WaitCue;
 
+export type SceneExitTransition = {
+  preset: StageTransitionPreset;
+  durationMs: number;
+  holdMs?: number;
+  intensity?: number;
+};
+
 export type Scene = {
   id: string;
   title: string;
   kind: SceneKind;
   autoAdvanceMs?: number;
   nextSceneId?: string;
+  exitTransition?: SceneExitTransition;
   cues: StoryCue[];
 };
 
@@ -131,6 +142,37 @@ export type Chapter = {
   scenes: Scene[];
 };
 
+export type StageAspectPreset = "16:9" | "21:9" | "4:3" | "3:2" | "1:1" | "9:16" | "custom";
+
+export type BackgroundFit = "contain" | "cover" | "fill";
+
+export type StageSettings = {
+  aspect: StageAspectPreset;
+  width: number;
+  height: number;
+  backgroundFit?: BackgroundFit;
+};
+
+export type DialogueRegionStyle = {
+  fontSize: number;
+  x: number;
+  y: number;
+};
+
+export type DialogueRuleStyle = {
+  x: number;
+  y: number;
+  width: number;
+};
+
+export type DialogueBoxSettings = {
+  heightPercent: number;
+  speaker: DialogueRegionStyle;
+  subtitle: DialogueRegionStyle;
+  text: DialogueRegionStyle;
+  rule: DialogueRuleStyle;
+};
+
 export type StoryProject = {
   schemaVersion: 1;
   projectId: string;
@@ -138,6 +180,9 @@ export type StoryProject = {
   entrySceneId: string;
   createdAt: string;
   updatedAt: string;
+  dialogueFontRef?: string;
+  stage?: StageSettings;
+  dialogueBox?: DialogueBoxSettings;
   chapters: Chapter[];
 };
 

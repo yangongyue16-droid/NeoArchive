@@ -2,23 +2,9 @@
 
 一个面向个人研究与原型验证的《Blue Archive》风格剧情编辑器蓝本，使用 React、TypeScript 与 Vite+ 构建。
 
-## 维护状态
-
-这是一个可运行的原型项目，目前不设全职主维护者。原作者会按自身需求偶尔补充功能，但不承诺固定的发布周期、Issue 响应时间或长期路线图。
-
-欢迎社区接手日常维护、提交 Pull Request，或基于本项目继续开发。若出现愿意长期维护的贡献者，仓库可以转移至新的维护者或共同组织；原作者仍可作为普通贡献者按需参与。
-
-代码以 Apache License 2.0 发布。仓库中的许可证只覆盖本项目原创代码，不授予《Blue Archive》名称、角色、美术、音频、Spine 数据或其他第三方素材的使用权。
-
 当前阶段只建立素材研究基线，不把第三方游戏素材纳入项目版本控制、发行包或商业分发。所有研究素材统一放在 `research-assets/`，并由 `.gitignore` 排除。
 
 素材来源、目录约定和本轮筛选结果见 [`docs/RESOURCE_INVENTORY.md`](docs/RESOURCE_INVENTORY.md)。
-
-同步民间公开剧情素材包（写入已忽略的 `research-assets/ba-public-pack/`）：
-
-```bash
-vp run assets:sync
-```
 
 AzureArchive 前身调研见 [`docs/AZUREARCHIVE_RESEARCH.md`](docs/AZUREARCHIVE_RESEARCH.md)。
 

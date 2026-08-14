@@ -1,7 +1,21 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { resolveBackground, resolveCharacter } from "../assets/catalog";
-import { AudioMixer, type AudioSettings } from "./AudioMixer";
-import type { PlaybackState } from "../runtime/StoryRuntime";
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PointerEvent,
+} from "react";
+import { resolveAudio, resolveBackgroundMedia, resolveCharacter } from "../assets/catalog";
+import { getUserAssetSnapshot, subscribeUserAssets } from "../assets/userAssets";
+import { dialogueBoxCssVars, normalizeDialogueBox, stageCssVars } from "../project-schema/stage";
+import type {
+  DialogueBoxSettings,
+  DialogueRegionStyle,
+  StageSettings,
+} from "../project-schema/types";
+import type { PlaybackState, RuntimeAudio } from "../runtime/StoryRuntime";
 import { SpineCharacter } from "../SpineCharacter";
 
 const StageTransition = lazy(() =>
@@ -10,6 +24,8 @@ const StageTransition = lazy(() =>
 
 type StoryStageProps = {
   playback: PlaybackState;
+  stage?: StageSettings;
+  dialogueBox?: DialogueBoxSettings;
   instantText?: boolean;
   onAdvance?: () => void;
   onChoose?: (optionId: string) => void;
@@ -18,11 +34,143 @@ type StoryStageProps = {
   onCharacterEnterComplete?: (instanceId: number) => void;
   onTransitionComplete?: (instanceId: number) => void;
   onTransitionCover?: (instanceId: number) => void;
-  audioSettings?: AudioSettings;
+  layoutEdit?: boolean;
+  onDialogueBoxChange?: (
+    patch: Partial<DialogueBoxSettings> & {
+      speaker?: Partial<DialogueRegionStyle>;
+      subtitle?: Partial<DialogueRegionStyle>;
+      text?: Partial<DialogueRegionStyle>;
+      rule?: Partial<DialogueBoxSettings["rule"]>;
+    },
+  ) => void;
 };
+
+function StoryAudio({ audio }: { audio: RuntimeAudio }) {
+  const source = resolveAudio(audio.assetRef);
+  return source ? (
+    <audio
+      autoPlay
+      key={`${audio.channel}:${audio.assetRef}:${audio.startMs ?? 0}`}
+      loop={audio.loop}
+      onLoadedMetadata={(event) => {
+        if ((audio.startMs ?? 0) > 0) {
+          event.currentTarget.currentTime = audio.startMs! / 1000;
+        }
+      }}
+      src={source}
+    />
+  ) : null;
+}
+
+type DialogueRegionKey = "speaker" | "subtitle" | "text" | "rule";
+
+function DialogueLayer({
+  dialogueBox,
+  layoutEdit,
+  onDialogueBoxChange,
+  speaker,
+  subtitle,
+  text,
+}: {
+  dialogueBox?: DialogueBoxSettings;
+  layoutEdit: boolean;
+  onDialogueBoxChange?: StoryStageProps["onDialogueBoxChange"];
+  speaker: string;
+  subtitle: string;
+  text: string;
+}) {
+  const box = normalizeDialogueBox(dialogueBox);
+  const layerRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{
+    key: DialogueRegionKey;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
+
+  const startDrag = (key: DialogueRegionKey, event: PointerEvent<HTMLElement>) => {
+    if (!layoutEdit || !onDialogueBoxChange) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const region = key === "rule" ? box.rule : box[key];
+    dragRef.current = {
+      key,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: region.x,
+      originY: region.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const moveDrag = (event: PointerEvent<HTMLElement>) => {
+    const drag = dragRef.current;
+    const layer = layerRef.current;
+    if (!drag || !layer || !onDialogueBoxChange) {
+      return;
+    }
+    const rect = layer.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      return;
+    }
+    const nextX = drag.originX + ((event.clientX - drag.startX) / rect.width) * 100;
+    const nextY = drag.originY + ((event.clientY - drag.startY) / rect.height) * 100;
+    onDialogueBoxChange({ [drag.key]: { x: nextX, y: nextY } });
+  };
+
+  const endDrag = () => {
+    dragRef.current = null;
+  };
+
+  return (
+    <div className="dialogue-layer" ref={layerRef} style={dialogueBoxCssVars(dialogueBox)}>
+      <div className="dialogue-content">
+        <strong
+          className={layoutEdit ? "is-draggable" : undefined}
+          onPointerDown={(event) => startDrag("speaker", event)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          {speaker}
+        </strong>
+        <span
+          className={layoutEdit ? "is-draggable" : undefined}
+          onPointerDown={(event) => startDrag("subtitle", event)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          {subtitle}
+        </span>
+        <div
+          className={`dialogue-rule ${layoutEdit ? "is-draggable" : ""}`}
+          onPointerDown={(event) => startDrag("rule", event)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        />
+        <p
+          className={layoutEdit ? "is-draggable" : undefined}
+          onPointerDown={(event) => startDrag("text", event)}
+          onPointerMove={moveDrag}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
+          {text}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export function StoryStage({
   playback,
+  stage,
+  dialogueBox,
   instantText = false,
   onAdvance,
   onChoose,
@@ -31,9 +179,11 @@ export function StoryStage({
   onCharacterEnterComplete,
   onTransitionComplete,
   onTransitionCover,
-  audioSettings = { masterVolume: 1, muted: false },
+  layoutEdit = false,
+  onDialogueBoxChange,
 }: StoryStageProps) {
-  const backgroundUrl = resolveBackground(playback.backgroundRef);
+  useSyncExternalStore(subscribeUserAssets, getUserAssetSnapshot, () => 0);
+  const background = resolveBackgroundMedia(playback.backgroundRef);
   const dialogue = playback.dialogue;
   const [visibleCharacters, setVisibleCharacters] = useState(() =>
     instantText ? (dialogue?.text.length ?? 0) : 0,
@@ -76,9 +226,10 @@ export function StoryStage({
 
   return (
     <article
-      className={`story-stage ${onAdvance ? "is-interactive" : ""}`}
+      className={`story-stage ${onAdvance && !layoutEdit ? "is-interactive" : ""} ${layoutEdit ? "is-layout-edit" : ""}`}
+      style={{ ...stageCssVars(stage), ...dialogueBoxCssVars(dialogueBox) }}
       onClick={() => {
-        if (playback.choices.length > 0) {
+        if (layoutEdit || playback.choices.length > 0) {
           return;
         }
         if (dialogue && !textComplete) {
@@ -88,17 +239,29 @@ export function StoryStage({
         onAdvance?.();
       }}
     >
-      {backgroundUrl ? (
+      {background?.kind === "video" ? (
+        <video
+          autoPlay
+          className="stage-background"
+          key={playback.backgroundInstanceId}
+          loop
+          muted
+          onAnimationEnd={() => onBackgroundTransitionComplete?.(playback.backgroundInstanceId)}
+          playsInline
+          src={background.url}
+          style={{ animationDuration: `${playback.backgroundTransitionMs}ms` }}
+        />
+      ) : background ? (
         <img
           alt=""
           className="stage-background"
           key={playback.backgroundInstanceId}
           onAnimationEnd={() => onBackgroundTransitionComplete?.(playback.backgroundInstanceId)}
-          src={backgroundUrl}
+          src={background.url}
           style={{ animationDuration: `${playback.backgroundTransitionMs}ms` }}
         />
       ) : null}
-      <div className="sky-grid" aria-hidden="true" />
+      {background ? null : <div className="sky-grid" aria-hidden="true" />}
       {playback.characters.map((character) => {
         const skeletonUrl = resolveCharacter(character.characterRef);
         return skeletonUrl ? (
@@ -114,19 +277,25 @@ export function StoryStage({
           />
         ) : null;
       })}
-      <AudioMixer audio={playback.audio} settings={audioSettings} status={playback.status} />
-      {dialogue ? (
-        <div className="dialogue-layer">
-          <div className="dialogue-content">
-            <div className="speaker-line">
-              <strong>{dialogue.speaker}</strong>
-              {dialogue.subtitle ? <span>{dialogue.subtitle}</span> : null}
-            </div>
-            <div className="dialogue-rule" />
-            <p>{dialogue.text.slice(0, visibleCharacters)}</p>
-          </div>
-          {textComplete ? <span className="continue-indicator" aria-hidden="true" /> : null}
-        </div>
+      {Object.values(playback.audio).map((audio) =>
+        audio ? <StoryAudio audio={audio} key={audio.channel} /> : null,
+      )}
+      {dialogue || layoutEdit ? (
+        <DialogueLayer
+          dialogueBox={dialogueBox}
+          layoutEdit={layoutEdit}
+          onDialogueBoxChange={onDialogueBoxChange}
+          speaker={dialogue?.speaker ?? "说话人"}
+          subtitle={dialogue?.subtitle ?? "身份"}
+          text={
+            dialogue
+              ? dialogue.text.slice(0, visibleCharacters)
+              : "在这里预览对话框高度、字号和位置。"
+          }
+        />
+      ) : null}
+      {textComplete && dialogue && !layoutEdit ? (
+        <span className="continue-indicator" aria-hidden="true" />
       ) : null}
       {playback.choices.length > 0 ? (
         <div className="choice-layer" onClick={(event) => event.stopPropagation()}>

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { loadPublicPackCatalog } from "../assets/catalog";
 import { loadDraftProject } from "../project-schema/projectFile";
 import { sampleProject } from "../project-schema/sampleProject";
 import { findScene } from "../project-schema/types";
 import { StoryRuntime, type RuntimeDialogue, type SaveSnapshot } from "../runtime/StoryRuntime";
+import { useDialogueFont } from "../assets/useDialogueFont";
 import { StoryStage } from "./StoryStage";
 
 type HistoryEntry = RuntimeDialogue & { sceneTitle: string | null };
@@ -30,10 +30,8 @@ function isSaveSnapshot(value: unknown): value is SaveSnapshot {
 }
 
 export function PlayerApp() {
-  useEffect(() => {
-    void loadPublicPackCatalog();
-  }, []);
   const project = useMemo(() => loadDraftProject() ?? sampleProject, []);
+  useDialogueFont(project.dialogueFontRef);
   const runtime = useMemo(() => new StoryRuntime(project), [project]);
   const playback = useSyncExternalStore(
     runtime.subscribe,
@@ -43,10 +41,9 @@ export function PlayerApp() {
   const [autoMode, setAutoMode] = useState(false);
   const [skipMode, setSkipMode] = useState(false);
   const [uiHidden, setUiHidden] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [masterVolume, setMasterVolume] = useState(0.8);
-  const [muted, setMuted] = useState(false);
   const [completedCueId, setCompletedCueId] = useState<string | null>(null);
   const [currentWasRead, setCurrentWasRead] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
@@ -103,6 +100,40 @@ export function PlayerApp() {
     skipMode,
   ]);
 
+  const setExclusiveFullscreen = useCallback(async (next: boolean) => {
+    try {
+      if ("__TAURI_INTERNALS__" in window) {
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        const current = getCurrentWindow();
+        await current.setSimpleFullscreen(false);
+        await current.setFullscreen(next);
+      } else if (next) {
+        await document.documentElement.requestFullscreen();
+      } else if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+      setFullscreen(next);
+      setUiHidden(next);
+    } catch {
+      setFullscreen(next);
+      setUiHidden(next);
+    }
+  }, []);
+
+  useEffect(() => {
+    void setExclusiveFullscreen(true);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        void setExclusiveFullscreen(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      void setExclusiveFullscreen(false);
+    };
+  }, [setExclusiveFullscreen]);
+
   const handleDialogueComplete = useCallback(() => {
     const cueId = runtime.getSnapshot().dialogue?.cueId;
     if (!cueId) {
@@ -135,7 +166,13 @@ export function PlayerApp() {
   return (
     <main className={`player-shell ${uiHidden ? "is-ui-hidden" : ""}`}>
       <header className="player-toolbar">
-        <button onClick={() => window.location.assign("/")} type="button">
+        <button
+          onClick={() => {
+            window.location.hash = "";
+            window.location.reload();
+          }}
+          type="button"
+        >
           返回编辑器
         </button>
         <div>
@@ -148,9 +185,10 @@ export function PlayerApp() {
           {playback.status}
         </span>
       </header>
-      <section className="player-stage-wrap">
+      <section className="player-stage-wrap stage-fit">
         <StoryStage
-          audioSettings={{ masterVolume, muted }}
+          stage={project.stage}
+          dialogueBox={project.dialogueBox}
           onAdvance={() => runtime.advance()}
           onChoose={(optionId) => runtime.choose(optionId)}
           onDialogueComplete={handleDialogueComplete}
@@ -191,27 +229,29 @@ export function PlayerApp() {
         <button onClick={() => setUiHidden(true)} type="button">
           隐藏 UI
         </button>
+        <button
+          className={fullscreen ? "is-active" : ""}
+          onClick={() => void setExclusiveFullscreen(!fullscreen)}
+          type="button"
+        >
+          {fullscreen ? "退出全屏" : "全屏"}
+        </button>
         <button onClick={() => runtime.advance()} type="button">
           下一句
-        </button>
-        <label className="audio-volume-control">
-          <span>音量</span>
-          <input
-            aria-label="主音量"
-            max={100}
-            min={0}
-            onChange={(event) => setMasterVolume(Number(event.currentTarget.value) / 100)}
-            type="range"
-            value={Math.round(masterVolume * 100)}
-          />
-        </label>
-        <button onClick={() => setMuted((current) => !current)} type="button">
-          {muted ? "恢复声音" : "静音"}
         </button>
       </footer>
 
       {uiHidden ? (
-        <button className="show-ui-button" onClick={() => setUiHidden(false)} type="button">
+        <button
+          className="show-ui-button"
+          onClick={() => {
+            setUiHidden(false);
+            if (fullscreen) {
+              void setExclusiveFullscreen(false);
+            }
+          }}
+          type="button"
+        >
           显示 UI
         </button>
       ) : null}

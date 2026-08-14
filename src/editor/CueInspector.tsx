@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
-import { audioChannelOptions, useAssetCatalog, type AssetOption } from "../assets/catalog";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { audioChannelOptions, backgroundOptions, characterOptions } from "../assets/catalog";
+import { getUserAsset, getUserAssetSnapshot, subscribeUserAssets } from "../assets/userAssets";
 import type { CharacterTransform, StoryCue, TimeWheelConfig } from "../project-schema/types";
 import type { EditableCuePatch } from "../state/editorStore";
 import { transitionPresets } from "../transitions/presets";
+import { LocalAssetPicker } from "./LocalAssetPicker";
 
 type CueInspectorProps = {
   cue: StoryCue | null;
   onUpdate: (patch: EditableCuePatch, field: string) => void;
-  onOpenLibrary?: (kind: "audio" | "background" | "character") => void;
 };
 
 type PlacementControlProps = {
@@ -161,36 +162,8 @@ function CharacterPlacement({
   );
 }
 
-function AssetLibraryTrigger({
-  label,
-  onOpen,
-  options,
-  value,
-}: {
-  label: string;
-  onOpen: () => void;
-  options: readonly AssetOption[];
-  value: string;
-}) {
-  const current = options.find((option) => option.value === value);
-
-  return (
-    <div className="asset-library-trigger">
-      <span>
-        {label}
-        <small className="asset-count"> {options.length}</small>
-      </span>
-      <button onClick={onOpen} type="button">
-        <strong>{current?.label ?? value}</strong>
-        <code>{value}</code>
-        <span>点击浏览素材库</span>
-      </button>
-    </div>
-  );
-}
-
-export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps) {
-  const { audioOptions, backgroundOptions, characterOptions } = useAssetCatalog();
+export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
+  useSyncExternalStore(subscribeUserAssets, getUserAssetSnapshot, () => 0);
   if (!cue) {
     return <p className="empty-inspector">选择一条剧本行后在这里编辑。</p>;
   }
@@ -268,12 +241,41 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
 
       {cue.type === "background.set" ? (
         <>
-          <AssetLibraryTrigger
-            label="背景素材"
-            onOpen={() => onOpenLibrary?.("background")}
-            options={backgroundOptions}
-            value={cue.assetRef}
+          <label>
+            <span>背景素材</span>
+            <select
+              onChange={(event) => {
+                if (event.currentTarget.value !== "__custom__") {
+                  onUpdate({ assetRef: event.currentTarget.value }, "assetRef");
+                }
+              }}
+              value={
+                backgroundOptions.some((option) => option.value === cue.assetRef)
+                  ? cue.assetRef
+                  : "__custom__"
+              }
+            >
+              {backgroundOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+              <option value="__custom__">
+                {getUserAsset(cue.assetRef)
+                  ? `本地文件 · ${getUserAsset(cue.assetRef)?.name}`
+                  : "本地文件 / 自定义"}
+              </option>
+            </select>
+          </label>
+          <LocalAssetPicker
+            accept="image/*,video/*,.avif,.bmp,.gif,.jpeg,.jpg,.png,.webp,.m4v,.mkv,.mov,.mp4,.webm"
+            allowed={["image", "video"]}
+            buttonLabel="选择本地图片或视频"
+            onImported={(assetRef) => onUpdate({ assetRef }, "assetRef")}
           />
+          {getUserAsset(cue.assetRef) ? (
+            <p className="asset-file-name">已选：{getUserAsset(cue.assetRef)?.name}</p>
+          ) : null}
           <label>
             <span>淡入时间（ms）</span>
             <input
@@ -293,12 +295,21 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
 
       {cue.type === "character.enter" ? (
         <>
-          <AssetLibraryTrigger
-            label="角色素材"
-            onOpen={() => onOpenLibrary?.("character")}
-            options={characterOptions}
-            value={cue.characterRef}
-          />
+          <label>
+            <span>角色素材</span>
+            <select
+              onChange={(event) =>
+                onUpdate({ characterRef: event.currentTarget.value }, "characterRef")
+              }
+              value={cue.characterRef}
+            >
+              {characterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <label>
             <span>Spine 动画</span>
             <input
@@ -331,12 +342,23 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
 
       {cue.type === "audio.play" ? (
         <>
-          <AssetLibraryTrigger
-            label="音频素材"
-            onOpen={() => onOpenLibrary?.("audio")}
-            options={audioOptions}
-            value={cue.assetRef}
+          <label>
+            <span>素材引用</span>
+            <input
+              onChange={(event) => onUpdate({ assetRef: event.currentTarget.value }, "assetRef")}
+              placeholder="选择本地音频，或填写已有引用"
+              value={cue.assetRef.startsWith("user:") ? "" : cue.assetRef}
+            />
+          </label>
+          <LocalAssetPicker
+            accept="audio/*,.aac,.flac,.m4a,.mp3,.ogg,.opus,.wav"
+            allowed={["audio"]}
+            buttonLabel={cue.channel === "voice" ? "选择本地语音" : "选择本地音频"}
+            onImported={(assetRef) => onUpdate({ assetRef }, "assetRef")}
           />
+          {getUserAsset(cue.assetRef) ? (
+            <p className="asset-file-name">已选：{getUserAsset(cue.assetRef)?.name}</p>
+          ) : null}
           <div className="field-row">
             <label>
               <span>通道</span>
@@ -421,9 +443,12 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
                   {
                     preset,
                     durationMs:
-                      preset === "chromatic-slice"
-                        ? Math.max(1800, cue.durationMs)
-                        : cue.durationMs,
+                      preset === "none"
+                        ? 0
+                        : preset === "chromatic-slice"
+                          ? Math.max(1800, cue.durationMs || 1800)
+                          : Math.max(240, cue.durationMs || 900),
+                    holdMs: preset === "none" ? 0 : cue.holdMs,
                     timeWheel:
                       preset === "chromatic-slice" && !cue.timeWheel
                         ? {
@@ -447,7 +472,7 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
           <p className="transition-description">
             {transitionPresets.find((preset) => preset.value === cue.preset)?.description}
           </p>
-          {cue.preset === "chromatic-slice" ? (
+          {cue.preset === "none" ? null : cue.preset === "chromatic-slice" ? (
             <section className="time-wheel-settings">
               <h3>剧情时间</h3>
               <label>
@@ -539,43 +564,47 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
               </div>
             </section>
           ) : null}
-          <div className="field-row">
-            <label>
-              <span>动画时长（ms）</span>
-              <DeferredNumberInput
-                min={cue.preset === "chromatic-slice" ? 1200 : 240}
-                onCommit={(durationMs) => onUpdate({ durationMs }, "durationMs")}
-                value={cue.durationMs}
-              />
-            </label>
-            <label>
-              <span>完全遮挡（ms）</span>
-              <DeferredNumberInput
-                min={0}
-                onCommit={(holdMs) => onUpdate({ holdMs }, "holdMs")}
-                value={cue.holdMs ?? 0}
-              />
-            </label>
-          </div>
-          <label>
-            <span>强度（10-200%）</span>
-            <input
-              max={200}
-              min={10}
-              onChange={(event) =>
-                onUpdate({ intensity: Number(event.currentTarget.value) / 100 }, "intensity")
-              }
-              type="range"
-              value={Math.round((cue.intensity ?? 1) * 100)}
-            />
-          </label>
-          <button
-            className="button button-secondary"
-            onClick={() => onUpdate({ intensity: cue.intensity ?? 1 }, "replay")}
-            type="button"
-          >
-            重新播放当前过场
-          </button>
+          {cue.preset === "none" ? null : (
+            <>
+              <div className="field-row">
+                <label>
+                  <span>动画时长（ms）</span>
+                  <DeferredNumberInput
+                    min={cue.preset === "chromatic-slice" ? 1200 : 240}
+                    onCommit={(durationMs) => onUpdate({ durationMs }, "durationMs")}
+                    value={cue.durationMs}
+                  />
+                </label>
+                <label>
+                  <span>完全遮挡（ms）</span>
+                  <DeferredNumberInput
+                    min={0}
+                    onCommit={(holdMs) => onUpdate({ holdMs }, "holdMs")}
+                    value={cue.holdMs ?? 0}
+                  />
+                </label>
+              </div>
+              <label>
+                <span>强度（10-200%）</span>
+                <input
+                  max={200}
+                  min={10}
+                  onChange={(event) =>
+                    onUpdate({ intensity: Number(event.currentTarget.value) / 100 }, "intensity")
+                  }
+                  type="range"
+                  value={Math.round((cue.intensity ?? 1) * 100)}
+                />
+              </label>
+              <button
+                className="button button-secondary"
+                onClick={() => onUpdate({ intensity: cue.intensity ?? 1 }, "replay")}
+                type="button"
+              >
+                重新播放当前过场
+              </button>
+            </>
+          )}
         </>
       ) : null}
 

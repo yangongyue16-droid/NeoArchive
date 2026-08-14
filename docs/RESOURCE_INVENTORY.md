@@ -1,6 +1,6 @@
 # 资源研究清单
 
-更新日期：2026-08-13
+更新日期：2026-08-12
 
 ## 使用边界
 
@@ -13,47 +13,11 @@
 
 ```text
 research-assets/
-├── archives/        # 原始 ZIP，保留来源包
-├── extracted/       # 完整解压内容，供研究检索
-├── curated/         # 与当前原型目标直接相关的候选素材
-├── references/      # 已下载但不属于当前目标的旁支参考
-└── ba-public-pack/  # 民间公开剧情素材包，由 scripts/sync_ba_public_pack.py 同步
+├── archives/   # 原始 ZIP，保留来源包
+├── extracted/  # 完整解压内容，供研究检索
+├── curated/    # 与当前原型目标直接相关的候选素材
+└── references/ # 已下载但不属于当前目标的旁支参考
 ```
-
-## 民间公开剧情素材包
-
-目录：`research-assets/ba-public-pack/`
-同步命令：`vp run assets:sync` 或 `python3 scripts/sync_ba_public_pack.py`
-
-这是当前能公开下到、且可直接给剧情编辑器使用的最完整包。它不是官方日服客户端整包。
-
-| 来源 | 角色 | 日期 |
-| --- | --- | --- |
-| [ba-archive `ba-all-data`](https://yuuka.cdn.diyigemt.com/image/ba-all-data/) | 剧情背景 JPG、立绘 PNG、BGM OGG、命名 Spine、Excel 清单 | 清单 `Last-Modified: 2026-06-23`；普通背景多在 `2025-08-06`，活动 CS 图可到 `2026-03-09` |
-| [ba-all-data-spine42](https://yuuka.cdn.diyigemt.com/image/ba-all-data-spine42/) | `CH*` / `NP*` 的 Spine 4.2 骨骼 | 有 `CH0300`（2025-07），没有 2026 夏活 `CH0348` |
-| [SchaleDB JP](https://schaledb.com/data/jp/students.json) | 现行日服学生元数据与头像/立绘 WebP | 2026-08 仍在更新，272 名学生 |
-
-本机已同步结果（2026-08-13，约 1.32 GB / 5602 个文件）：
-
-| 类别 | 数量 |
-| --- | --- |
-| 平面背景 JPG | 1943 / 1947（缺 4） |
-| 剧情立绘 PNG | 546 / 549（3 张公开源没有：泰拉重械、小号手天使、霞 NPC 变体） |
-| BGM OGG | 364 / 364；热门曲有中文译名，其余保留官方英文曲名 |
-| 编辑器汉化 | 背景/角色/音效下拉为中文优先，仍可用原文件名搜索。词表在 `scripts/ba_zh_tokens.json` |
-| 剧情 SE WAV | 由 `scripts/ba_story_se.json` 按剧情 JSON 引用从 `Audio/Sound/` 拉取；不是完整游戏音效包 |
-| 可用 Spine（skel+atlas+png） | 543 |
-| SchaleDB 学生图 | 1088（272 人 × collection/icon/portrait/lobby） |
-| 表情/常用 SE | 32 |
-
-核对过、但不能作为本包来源的更新渠道：
-
-- `feilongproject/ba-data` 最后一次推送是 2025-12，且 Excel 多为 Git LFS 指针，没有可直接用的完整媒体。
-- `kiraio-moe/Schale-Archive` 最后更新 2025-01，只含 Spine，体积约 2 GB git。
-- `archive.blue-archive.io` 有 Cloudflare 挑战，脚本无法直接拉。
-- `Deathemonic/BA-AD` 一类工具是从官方游戏 CDN 拉整包 AssetBundle，不是已经公开解好的剧情素材，这里不使用。
-
-结论：没有找到 2026-08 的完整日服解包镜像。开发包以 2026-06-23 的 ba-archive 清单为准，媒体能下就下；2026 新学生至少能从 SchaleDB 拿到头像和资料卡。
 
 ## 角色：Sakurako (Pop Idol) - 0274
 
@@ -167,11 +131,9 @@ research-assets/
 
 ## 本轮统计
 
-- 民间公开剧情包：`research-assets/ba-public-pack/`，约 1.32 GB，清单日期 2026-06-23。
-- 编辑器可点选：1943 张背景、543 个 Spine 角色、364 首 BGM。
-- 角色资源抽样：1 个 ZIP / 15 个 PNG。
+- 角色资源：1 个 ZIP / 15 个 PNG。
 - Lobby 分层资源：10 个 ZIP。
-- 早期 curated 平面背景：10 张 JPG，仍作为示例工程别名保留。
+- 可直接使用的平面背景：10 张 JPG。
 - 通用界面与对话素材：19 个图像文件。
 - UI 参考组件：5 个 Vue 文件，并保留上游 AGPL-3.0 许可证。
 - 旁支活动 UI：1 个 ZIP / 103 个 PNG，不计入当前 UI 成果。

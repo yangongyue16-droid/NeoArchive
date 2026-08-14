@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { getUserAsset, getUserAssetSnapshot, subscribeUserAssets } from "../assets/userAssets";
 import type { Scene, StoryCue } from "../project-schema/types";
-import type { AddableCueType } from "../state/editorStore";
+import type { AddableCueType, EditableCuePatch } from "../state/editorStore";
+import { hasBoundVoice, VoiceCuePanel, VoiceStatusButton } from "./VoiceCuePanel";
 
 type ScriptTimelineProps = {
   scene: Scene;
@@ -11,6 +13,7 @@ type ScriptTimelineProps = {
   onMove: (cueId: string, direction: -1 | 1) => void;
   onReorder: (cueId: string, targetCueId: string, edge: "before" | "after") => void;
   onSelect: (cueId: string) => void;
+  onUpdateCue: (cueId: string, patch: EditableCuePatch, field: string) => void;
 };
 
 const cueLabels: Record<StoryCue["type"], string> = {
@@ -29,7 +32,7 @@ const cueLabels: Record<StoryCue["type"], string> = {
 function cueSummary(cue: StoryCue): string {
   switch (cue.type) {
     case "background.set":
-      return cue.assetRef;
+      return getUserAsset(cue.assetRef)?.name ?? cue.assetRef;
     case "character.enter":
       return `${cue.characterRef} · ${cue.animation}`;
     case "character.update":
@@ -39,7 +42,7 @@ function cueSummary(cue: StoryCue): string {
     case "dialogue.show":
       return `${cue.speaker}：${cue.text}`;
     case "audio.play":
-      return `${cue.channel.toUpperCase()} · ${cue.assetRef}`;
+      return `${cue.channel.toUpperCase()} · ${getUserAsset(cue.assetRef)?.name ?? cue.assetRef}`;
     case "audio.stop":
       return cue.channel.toUpperCase();
     case "choice.show":
@@ -56,7 +59,6 @@ const addActions: Array<{ label: string; type: AddableCueType }> = [
   { label: "+ 角色", type: "character.enter" },
   { label: "+ 背景", type: "background.set" },
   { label: "+ 音频", type: "audio.play" },
-  { label: "+ 过场", type: "transition.play" },
   { label: "+ 等待", type: "wait" },
 ];
 
@@ -69,7 +71,9 @@ export function ScriptTimeline({
   onMove,
   onReorder,
   onSelect,
+  onUpdateCue,
 }: ScriptTimelineProps) {
+  useSyncExternalStore(subscribeUserAssets, getUserAssetSnapshot, () => 0);
   const cues = scene.cues;
   const [draggedCueId, setDraggedCueId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{
@@ -80,6 +84,21 @@ export function ScriptTimeline({
   const updateDropTarget = (target: typeof dropTarget) => {
     dropTargetRef.current = target;
     setDropTarget(target);
+  };
+  const [expandedVoiceIds, setExpandedVoiceIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    setExpandedVoiceIds(new Set());
+  }, [scene.id]);
+  const toggleVoice = (cueId: string) => {
+    setExpandedVoiceIds((current) => {
+      const next = new Set(current);
+      if (next.has(cueId)) {
+        next.delete(cueId);
+      } else {
+        next.add(cueId);
+      }
+      return next;
+    });
   };
 
   return (
@@ -98,90 +117,109 @@ export function ScriptTimeline({
         </div>
       </div>
       <div className="script-cue-list">
-        {cues.map((cue, index) => (
-          <article
-            className={`script-cue-row ${cue.id === selectedCueId ? "is-selected" : ""} ${cue.id === draggedCueId ? "is-dragging" : ""} ${cue.id === dropTarget?.cueId ? `is-drop-${dropTarget.edge}` : ""}`}
-            data-cue-id={cue.id}
-            key={cue.id}
-          >
-            <button
-              aria-label={`拖拽编排 ${cueLabels[cue.type]}`}
-              className="cue-drag-handle"
-              onClick={() => onSelect(cue.id)}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.currentTarget.setPointerCapture(event.pointerId);
-                setDraggedCueId(cue.id);
-              }}
-              onPointerMove={(event) => {
-                if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
-                  return;
-                }
-                const row = document
-                  .elementFromPoint(event.clientX, event.clientY)
-                  ?.closest<HTMLElement>(".script-cue-row");
-                const targetCueId = row?.dataset.cueId;
-                if (!row || !targetCueId || targetCueId === cue.id) {
-                  updateDropTarget(null);
-                  return;
-                }
-                const bounds = row.getBoundingClientRect();
-                updateDropTarget({
-                  cueId: targetCueId,
-                  edge: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after",
-                });
-              }}
-              onPointerUp={(event) => {
-                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                  event.currentTarget.releasePointerCapture(event.pointerId);
-                }
-                const target = dropTargetRef.current;
-                if (target && target.cueId !== cue.id) {
-                  onReorder(cue.id, target.cueId, target.edge);
-                }
-                setDraggedCueId(null);
-                updateDropTarget(null);
-              }}
-              title="按住拖拽编排"
-              type="button"
+        {cues.map((cue, index) => {
+          const isDialogue = cue.type === "dialogue.show";
+          const voiceOpen = isDialogue ? expandedVoiceIds.has(cue.id) : false;
+          return (
+            <article
+              className={`script-cue-row ${isDialogue ? "has-voice" : ""} ${cue.id === selectedCueId ? "is-selected" : ""} ${cue.id === draggedCueId ? "is-dragging" : ""} ${cue.id === dropTarget?.cueId ? `is-drop-${dropTarget.edge}` : ""}`}
+              data-cue-id={cue.id}
+              key={cue.id}
             >
-              <span />
-              <span />
-              <span />
-            </button>
-            <button className="cue-main" onClick={() => onSelect(cue.id)} type="button">
-              <span className={`cue-kind cue-kind-${cue.type.split(".")[0]}`}>
-                {cueLabels[cue.type]}
-              </span>
-              <span className="cue-order">{String(index + 1).padStart(2, "0")}</span>
-              <span className="cue-summary">{cueSummary(cue)}</span>
-            </button>
-            <div className="cue-row-actions">
               <button
-                aria-label="上移"
-                disabled={index === 0}
-                onClick={() => onMove(cue.id, -1)}
+                aria-label={`拖拽编排 ${cueLabels[cue.type]}`}
+                className="cue-drag-handle"
+                onClick={() => onSelect(cue.id)}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  setDraggedCueId(cue.id);
+                }}
+                onPointerMove={(event) => {
+                  if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+                    return;
+                  }
+                  const row = document
+                    .elementFromPoint(event.clientX, event.clientY)
+                    ?.closest<HTMLElement>(".script-cue-row");
+                  const targetCueId = row?.dataset.cueId;
+                  if (!row || !targetCueId || targetCueId === cue.id) {
+                    updateDropTarget(null);
+                    return;
+                  }
+                  const bounds = row.getBoundingClientRect();
+                  updateDropTarget({
+                    cueId: targetCueId,
+                    edge: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after",
+                  });
+                }}
+                onPointerUp={(event) => {
+                  if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                  }
+                  const target = dropTargetRef.current;
+                  if (target && target.cueId !== cue.id) {
+                    onReorder(cue.id, target.cueId, target.edge);
+                  }
+                  setDraggedCueId(null);
+                  updateDropTarget(null);
+                }}
+                title="按住拖拽编排"
                 type="button"
               >
-                ↑
+                <span />
+                <span />
+                <span />
               </button>
-              <button
-                aria-label="下移"
-                disabled={index === cues.length - 1}
-                onClick={() => onMove(cue.id, 1)}
-                type="button"
-              >
-                ↓
+              {cue.type === "dialogue.show" ? (
+                <VoiceStatusButton
+                  bound={hasBoundVoice(cue)}
+                  expanded={voiceOpen}
+                  onToggle={() => toggleVoice(cue.id)}
+                />
+              ) : null}
+              <button className="cue-main" onClick={() => onSelect(cue.id)} type="button">
+                <span className={`cue-kind cue-kind-${cue.type.split(".")[0]}`}>
+                  {cueLabels[cue.type]}
+                </span>
+                <span className="cue-order">{String(index + 1).padStart(2, "0")}</span>
+                <span className="cue-summary">{cueSummary(cue)}</span>
               </button>
-              <button aria-label="复制" onClick={() => onDuplicate(cue.id)} type="button">
-                复制
-              </button>
-              <button aria-label="删除" onClick={() => onDelete(cue.id)} type="button">
-                删除
-              </button>
-            </div>
-          </article>
-        ))}
+              <div className="cue-row-actions">
+                <button
+                  aria-label="上移"
+                  disabled={index === 0}
+                  onClick={() => onMove(cue.id, -1)}
+                  type="button"
+                >
+                  ↑
+                </button>
+                <button
+                  aria-label="下移"
+                  disabled={index === cues.length - 1}
+                  onClick={() => onMove(cue.id, 1)}
+                  type="button"
+                >
+                  ↓
+                </button>
+                <button aria-label="复制" onClick={() => onDuplicate(cue.id)} type="button">
+                  复制
+                </button>
+                <button aria-label="删除" onClick={() => onDelete(cue.id)} type="button">
+                  删除
+                </button>
+              </div>
+              {cue.type === "dialogue.show" ? (
+                <VoiceCuePanel
+                  cue={cue}
+                  expanded={voiceOpen}
+                  onChange={(patch) => onUpdateCue(cue.id, patch, "voice")}
+                  onToggle={() => toggleVoice(cue.id)}
+                />
+              ) : null}
+            </article>
+          );
+        })}
       </div>
     </section>
   );
