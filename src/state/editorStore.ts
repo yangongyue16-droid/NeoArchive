@@ -46,6 +46,7 @@ export type EditableCuePatch = Partial<{
   typingCps: number;
   voiceAssetRef?: string;
   voiceStartMs?: number;
+  holdAfterMs?: number;
   volume: number;
   waitForAdvance: boolean;
 }>;
@@ -94,6 +95,7 @@ type EditorState = {
   ) => void;
   undo: () => void;
   redo: () => void;
+  flushDraft: () => void;
 };
 
 const historyLimit = 100;
@@ -362,6 +364,9 @@ export const useEditorStore = create<EditorState>((set) => ({
         if ("voiceStartMs" in patch && patch.voiceStartMs === undefined) {
           delete cue.voiceStartMs;
         }
+        if ("holdAfterMs" in patch && patch.holdAfterMs === undefined) {
+          delete cue.holdAfterMs;
+        }
       }
       return commitProject(state, project, `cue:${cueId}:${field}`);
     }),
@@ -466,6 +471,9 @@ export const useEditorStore = create<EditorState>((set) => ({
       });
       return commitProject(state, { ...state.project, dialogueBox: next }, "project:dialogueBox");
     }),
+  flushDraft: () => {
+    persistImmediately(useEditorStore.getState().project);
+  },
   loadProject: (project) => {
     persistImmediately(project);
     set({

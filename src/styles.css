@@ -1630,11 +1630,70 @@ h2 {
   color: var(--accent-text);
 }
 
-.voice-waveform {
+.voice-lane {
+  display: grid;
+  gap: 6px;
+}
+
+.voice-lane > span {
+  color: var(--ink-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-waveform-wrap {
+  position: relative;
+  overflow: hidden;
   width: 100%;
-  height: 56px;
   border-radius: 8px;
   background: var(--canvas-well);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.voice-waveform-wrap.is-overview {
+  height: 40px;
+}
+
+.voice-waveform-wrap.is-detail {
+  height: 56px;
+}
+
+.voice-waveform {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.voice-waveform-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border: 1px solid rgba(255, 196, 86, 0.85);
+  background: rgba(255, 196, 86, 0.14);
+  pointer-events: none;
+}
+
+.voice-waveform-origin,
+.voice-waveform-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  pointer-events: none;
+}
+
+.voice-waveform-origin {
+  background: rgba(255, 196, 86, 0.95);
+}
+
+.voice-waveform-playhead {
+  background: #fff;
+  box-shadow: 0 0 6px rgba(125, 212, 239, 0.85);
+}
+
+.voice-waveform-playhead.is-fixed {
+  left: 28%;
 }
 
 .voice-start {

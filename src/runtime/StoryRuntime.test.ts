@@ -252,6 +252,56 @@ describe("StoryRuntime", () => {
     expect(runtime.getSnapshot().characters).toHaveLength(1);
   });
 
+  it("stops the previous line voice when the next cue is a new background or unvoiced line", () => {
+    const project = structuredClone(sampleProject);
+    const scene = project.chapters[0]?.scenes[0];
+    const firstDialogue = scene?.cues.find((cue) => cue.id === "cue-dialogue-001");
+    if (!scene || !firstDialogue || firstDialogue.type !== "dialogue.show") {
+      throw new Error("Expected dialogue fixture");
+    }
+    firstDialogue.voiceAssetRef = "user:voice-line-a";
+    firstDialogue.voiceStartMs = 800;
+    const firstIndex = scene.cues.findIndex((cue) => cue.id === "cue-dialogue-001");
+    scene.cues.splice(firstIndex + 1, 0, {
+      id: "cue-bg-after-voice",
+      type: "background.set",
+      atMs: 0,
+      assetRef: "background/hallway",
+      transitionMs: 0,
+    });
+
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+    completeStageActions(runtime);
+    expect(runtime.getSnapshot().audio.voice?.cueId).toBe("cue-dialogue-001");
+
+    runtime.advance();
+    expect(runtime.getSnapshot().audio.voice).toBeUndefined();
+    expect(runtime.getSnapshot().backgroundRef).toBe("background/hallway");
+
+    completeStageActions(runtime);
+    expect(runtime.getSnapshot().dialogue?.cueId).toBe("cue-dialogue-001b");
+    expect(runtime.getSnapshot().audio.voice).toBeUndefined();
+  });
+
+  it("does not start dialogue voice when previewing a selected line", () => {
+    const project = structuredClone(sampleProject);
+    const dialogue = project.chapters[0]?.scenes[0]?.cues.find(
+      (cue) => cue.id === "cue-dialogue-001",
+    );
+    if (!dialogue || dialogue.type !== "dialogue.show") {
+      throw new Error("Expected dialogue fixture");
+    }
+    dialogue.voiceAssetRef = "user:voice-preview";
+    dialogue.voiceStartMs = 1200;
+
+    const runtime = new StoryRuntime(project);
+    runtime.preview("scene-001", "cue-dialogue-001");
+
+    expect(runtime.getSnapshot().dialogue?.cueId).toBe("cue-dialogue-001");
+    expect(runtime.getSnapshot().audio.voice).toBeUndefined();
+  });
+
   it("previews the selected cue with the projected stage state", () => {
     const runtime = new StoryRuntime(sampleProject);
 

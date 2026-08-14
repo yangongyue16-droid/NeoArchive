@@ -45,6 +45,7 @@ export type DialogueShowCue = BaseCue & {
   text: string;
   typingCps: number;
   waitForAdvance: boolean;
+  holdAfterMs?: number;
   voiceAssetRef?: string;
   voiceStartMs?: number;
 };
@@ -135,6 +136,19 @@ export type Scene = {
   exitTransition?: SceneExitTransition;
   cues: StoryCue[];
 };
+
+export function resolveDialogueHoldMs(
+  cue: { text: string; holdAfterMs?: number },
+  scene?: { autoAdvanceMs?: number } | null,
+): number {
+  if (cue.holdAfterMs !== undefined) {
+    return Math.max(0, cue.holdAfterMs);
+  }
+  if (scene?.autoAdvanceMs !== undefined) {
+    return Math.max(0, scene.autoAdvanceMs);
+  }
+  return Math.max(850, cue.text.length * 42);
+}
 
 export type Chapter = {
   id: string;

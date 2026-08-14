@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { loadDraftProject } from "../project-schema/projectFile";
 import { sampleProject } from "../project-schema/sampleProject";
-import { findScene } from "../project-schema/types";
+import { findScene, resolveDialogueHoldMs } from "../project-schema/types";
 import { StoryRuntime, type RuntimeDialogue, type SaveSnapshot } from "../runtime/StoryRuntime";
 import { useDialogueFont } from "../assets/useDialogueFont";
 import { StoryStage } from "./StoryStage";
@@ -38,7 +38,7 @@ export function PlayerApp() {
     runtime.getSnapshot,
     runtime.getSnapshot,
   );
-  const [autoMode, setAutoMode] = useState(false);
+  const [autoMode, setAutoMode] = useState(true);
   const [skipMode, setSkipMode] = useState(false);
   const [uiHidden, setUiHidden] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -79,12 +79,16 @@ export function PlayerApp() {
     if (!shouldAdvanceForSkip && !shouldAdvanceForAuto) {
       return;
     }
-    const sceneAutoAdvanceMs = playback.sceneId
-      ? findScene(project, playback.sceneId)?.autoAdvanceMs
-      : undefined;
+    const scene = playback.sceneId ? findScene(project, playback.sceneId) : undefined;
+    const dialogueCue = scene?.cues.find(
+      (cue) => cue.id === dialogue.cueId && cue.type === "dialogue.show",
+    );
     const delay = shouldAdvanceForSkip
       ? 70
-      : (sceneAutoAdvanceMs ?? Math.max(850, dialogue.text.length * 42));
+      : resolveDialogueHoldMs(
+          dialogueCue?.type === "dialogue.show" ? dialogueCue : { text: dialogue.text },
+          scene,
+        );
     const timer = window.setTimeout(() => runtime.advance(), delay);
     return () => window.clearTimeout(timer);
   }, [

@@ -213,6 +213,7 @@ export function ScriptTimeline({
                 <VoiceCuePanel
                   cue={cue}
                   expanded={voiceOpen}
+                  selected={cue.id === selectedCueId}
                   onChange={(patch) => onUpdateCue(cue.id, patch, "voice")}
                   onToggle={() => toggleVoice(cue.id)}
                 />

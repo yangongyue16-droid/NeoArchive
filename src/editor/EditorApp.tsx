@@ -15,7 +15,7 @@ import {
 } from "../project-schema/stage";
 import type { BackgroundFit } from "../project-schema/types";
 import type { DialogueRegionStyle } from "../project-schema/types";
-import { findScene, getAllScenes } from "../project-schema/types";
+import { findScene, getAllScenes, resolveDialogueHoldMs } from "../project-schema/types";
 import { StoryStage } from "../player/StoryStage";
 import { useStoryRuntime } from "../runtime/useStoryRuntime";
 import { useEditorStore } from "../state/editorStore";
@@ -66,11 +66,52 @@ export function EditorApp() {
   const activeScene = findScene(project, selectedSceneId) ?? getAllScenes(project)[0];
   const selectedCue =
     activeScene.cues.find((cue) => cue.id === selectedCueId) ?? activeScene.cues[0] ?? null;
-  const { playback, runtime } = useStoryRuntime(project, activeScene.id, selectedCue?.id);
+  const { playback, runtime, startScene, previewCue, isLivePlayback } = useStoryRuntime(
+    project,
+    activeScene.id,
+    selectedCue?.id,
+  );
+  const holdTimerRef = useRef<number | null>(null);
   const customFont = project.dialogueFontRef ? getUserAsset(project.dialogueFontRef) : null;
   const stage = normalizeStageSettings(project.stage);
   const dialogueBox = normalizeDialogueBox(project.dialogueBox);
   useDialogueFont(project.dialogueFontRef);
+
+  useEffect(() => {
+    if (holdTimerRef.current !== null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (!isLivePlayback() || playback.status !== "waiting_user" || playback.choices.length > 0) {
+      return;
+    }
+    const dialogueCue = activeScene.cues.find(
+      (cue) => cue.id === playback.dialogue?.cueId && cue.type === "dialogue.show",
+    );
+    if (!dialogueCue || dialogueCue.type !== "dialogue.show") {
+      return;
+    }
+    holdTimerRef.current = window.setTimeout(
+      () => {
+        holdTimerRef.current = null;
+        runtime.advance();
+      },
+      resolveDialogueHoldMs(dialogueCue, activeScene),
+    );
+    return () => {
+      if (holdTimerRef.current !== null) {
+        window.clearTimeout(holdTimerRef.current);
+        holdTimerRef.current = null;
+      }
+    };
+  }, [
+    activeScene,
+    isLivePlayback,
+    playback.choices.length,
+    playback.dialogue?.cueId,
+    playback.status,
+    runtime,
+  ]);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -307,6 +348,7 @@ export function EditorApp() {
           <button
             className="button button-primary"
             onClick={() => {
+              useEditorStore.getState().flushDraft();
               window.location.hash = "#/player";
             }}
             type="button"
@@ -366,7 +408,7 @@ export function EditorApp() {
                   activeScene.autoAdvanceMs === undefined ? "" : activeScene.autoAdvanceMs / 1000
                 }
               />
-              <small>留空则按文字长度自动计算</small>
+              <small>本场默认。单句可在幕后覆盖。成品和「播放场景」共用。</small>
             </label>
             <label>
               <span>下一场</span>
@@ -547,12 +589,12 @@ export function EditorApp() {
             <div className="toolbar-group" aria-label="幕后工具">
               <span className="live-preview-badge">LIVE</span>
               <button
-                onClick={() => runtime.preview(activeScene.id, selectedCue?.id, true)}
+                onClick={() => previewCue(activeScene.id, selectedCue?.id, true)}
                 type="button"
               >
                 刷新当前行
               </button>
-              <button onClick={() => runtime.start(activeScene.id)} type="button">
+              <button onClick={() => startScene(activeScene.id)} type="button">
                 播放场景
               </button>
             </div>
@@ -560,7 +602,7 @@ export function EditorApp() {
 
           <div className="stage-fit">
             <StoryStage
-              instantText
+              instantText={workMode === "stage" || playback.status !== "playing"}
               layoutEdit={workMode === "stage"}
               stage={stage}
               dialogueBox={dialogueBox}
@@ -661,6 +703,45 @@ export function EditorApp() {
                   />
                 </label>
               </div>
+              {selectedCue?.type === "dialogue.show" ? (
+                <label>
+                  <span>本句播完停留（秒）</span>
+                  <input
+                    min={0}
+                    onChange={(event) => {
+                      const rawValue = event.currentTarget.value;
+                      if (rawValue === "") {
+                        updateCue(
+                          activeScene.id,
+                          selectedCue.id,
+                          { holdAfterMs: undefined },
+                          "holdAfterMs",
+                        );
+                        return;
+                      }
+                      const seconds = Number(rawValue);
+                      if (!Number.isFinite(seconds)) {
+                        return;
+                      }
+                      updateCue(
+                        activeScene.id,
+                        selectedCue.id,
+                        { holdAfterMs: Math.max(0, Math.round(seconds * 1000)) },
+                        "holdAfterMs",
+                      );
+                    }}
+                    placeholder={`${resolveDialogueHoldMs({ text: selectedCue.text }, activeScene) / 1000}`}
+                    step={0.25}
+                    type="number"
+                    value={
+                      selectedCue.holdAfterMs === undefined ? "" : selectedCue.holdAfterMs / 1000
+                    }
+                  />
+                  <small>留空用场景 AUTO。成品和「播放场景」共用这个数。</small>
+                </label>
+              ) : (
+                <p className="voice-error">先在时间线选一句对白，再设播完停留。</p>
+              )}
               <button
                 className="button button-secondary"
                 onClick={() => {

@@ -31,7 +31,17 @@ export type RuntimeAudio = {
   loop: boolean;
   volume: number;
   startMs?: number;
+  cueId?: string;
 };
+
+function withoutDialogueVoice(state: PlaybackState): PlaybackState {
+  if (!state.audio.voice) {
+    return state;
+  }
+  const audio = { ...state.audio };
+  delete audio.voice;
+  return { ...state, audio };
+}
 
 export type RuntimeTransition = {
   instanceId: number;
@@ -282,6 +292,8 @@ export class StoryRuntime {
             enterDurationMs: index === finalIndex ? cue.enterDurationMs : 0,
           });
         }
+      } else if (cue.type === "dialogue.show") {
+        nextState = this.applyCue(nextState, { ...cue, voiceAssetRef: undefined });
       } else {
         nextState = this.applyCue(nextState, cue);
       }
@@ -304,7 +316,7 @@ export class StoryRuntime {
       return;
     }
 
-    this.state = { ...this.state, status: "playing", dialogue: null };
+    this.state = { ...withoutDialogueVoice(this.state), status: "playing", dialogue: null };
     this.process(scene, this.state.currentCueIndex);
   }
 
@@ -433,7 +445,11 @@ export class StoryRuntime {
           instanceId: outgoingTransition.instanceId,
           targetSceneId,
         };
-        this.commit({ ...nextState, status: "playing", dialogue: null });
+        this.commit({
+          ...withoutDialogueVoice(nextState),
+          status: "playing",
+          dialogue: null,
+        });
         return;
       }
 
@@ -463,7 +479,7 @@ export class StoryRuntime {
           targetSceneId: scene.nextSceneId,
         };
         this.commit({
-          ...nextState,
+          ...withoutDialogueVoice(nextState),
           status: "playing",
           dialogue: null,
           transition: outgoingTransition,
@@ -493,7 +509,7 @@ export class StoryRuntime {
     }
 
     this.commit({
-      ...nextState,
+      ...withoutDialogueVoice(nextState),
       status: "playing",
       currentCueIndex: resumeIndex,
       dialogue: null,
@@ -507,13 +523,13 @@ export class StoryRuntime {
     switch (cue.type) {
       case "background.set":
         this.backgroundSequence += 1;
-        return {
+        return withoutDialogueVoice({
           ...state,
           backgroundRef: cue.assetRef,
           backgroundCueId: cue.id,
           backgroundInstanceId: this.backgroundSequence,
           backgroundTransitionMs: cue.transitionMs ?? 0,
-        };
+        });
       case "character.enter": {
         this.characterEntrySequence += 1;
         const otherCharacters = state.characters.filter(
@@ -555,7 +571,7 @@ export class StoryRuntime {
           ),
         };
       case "dialogue.show": {
-        const nextState = {
+        const nextState = withoutDialogueVoice({
           ...state,
           dialogue: {
             cueId: cue.id,
@@ -564,7 +580,7 @@ export class StoryRuntime {
             text: cue.text,
             typingCps: cue.typingCps,
           },
-        };
+        });
         if (!cue.voiceAssetRef) {
           return nextState;
         }
@@ -578,17 +594,18 @@ export class StoryRuntime {
               loop: false,
               volume: 1,
               startMs: cue.voiceStartMs ?? 0,
+              cueId: cue.id,
             },
           },
         };
       }
       case "choice.show":
-        return {
+        return withoutDialogueVoice({
           ...state,
           dialogue: null,
           choicePrompt: cue.prompt ?? null,
           choices: cue.options,
-        };
+        });
       case "audio.play":
         return {
           ...state,

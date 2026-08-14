@@ -51,7 +51,7 @@ function StoryAudio({ audio }: { audio: RuntimeAudio }) {
   return source ? (
     <audio
       autoPlay
-      key={`${audio.channel}:${audio.assetRef}:${audio.startMs ?? 0}`}
+      key={`${audio.channel}:${audio.cueId ?? ""}:${audio.assetRef}:${audio.startMs ?? 0}`}
       loop={audio.loop}
       onLoadedMetadata={(event) => {
         if ((audio.startMs ?? 0) > 0) {

@@ -236,6 +236,29 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
               <span>等待玩家继续</span>
             </label>
           </div>
+          <label>
+            <span>本句播完停留（秒）</span>
+            <input
+              min={0}
+              onChange={(event) => {
+                const rawValue = event.currentTarget.value;
+                if (rawValue === "") {
+                  onUpdate({ holdAfterMs: undefined }, "holdAfterMs");
+                  return;
+                }
+                const seconds = Number(rawValue);
+                if (!Number.isFinite(seconds)) {
+                  return;
+                }
+                onUpdate({ holdAfterMs: Math.max(0, Math.round(seconds * 1000)) }, "holdAfterMs");
+              }}
+              placeholder="用场景 AUTO"
+              step={0.25}
+              type="number"
+              value={cue.holdAfterMs === undefined ? "" : cue.holdAfterMs / 1000}
+            />
+            <small>打字/语音结束后再等这么久切下一句。成品和幕前共用。</small>
+          </label>
         </>
       ) : null}
 
