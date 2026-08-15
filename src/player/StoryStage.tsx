@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { resolveBackground, resolveCharacter } from "../assets/catalog";
 import { AudioMixer, type AudioSettings } from "./AudioMixer";
 import type { PlaybackState } from "../runtime/StoryRuntime";
+import { isRasterCharacterUrl, PngCharacter } from "../PngCharacter";
 import { SpineCharacter } from "../SpineCharacter";
 
 const StageTransition = lazy(() =>
@@ -100,19 +101,31 @@ export function StoryStage({
       ) : null}
       <div className="sky-grid" aria-hidden="true" />
       {playback.characters.map((character) => {
-        const skeletonUrl = resolveCharacter(character.characterRef);
-        return skeletonUrl ? (
-          <SpineCharacter
-            animationName={character.animation}
-            enterDurationMs={character.enterDurationMs}
-            onEnterComplete={() => onCharacterEnterComplete?.(character.entryInstanceId)}
+        const assetUrl = resolveCharacter(character.characterRef);
+        if (!assetUrl) {
+          return null;
+        }
+        const shared = {
+          enterDurationMs: character.enterDurationMs,
+          onEnterComplete: () => onCharacterEnterComplete?.(character.entryInstanceId),
+          positionXPercent: character.transform.x * 100,
+          positionYPercent: character.transform.y * 100,
+          scalePercent: character.transform.scale * 100,
+        };
+        return isRasterCharacterUrl(assetUrl) ? (
+          <PngCharacter
+            {...shared}
+            imageUrl={assetUrl}
             key={`${character.characterRef}:${character.entryInstanceId}`}
-            positionXPercent={character.transform.x * 100}
-            positionYPercent={character.transform.y * 100}
-            scalePercent={character.transform.scale * 100}
-            skeletonUrl={skeletonUrl}
           />
-        ) : null;
+        ) : (
+          <SpineCharacter
+            {...shared}
+            animationName={character.animation}
+            key={`${character.characterRef}:${character.entryInstanceId}`}
+            skeletonUrl={assetUrl}
+          />
+        );
       })}
       <AudioMixer audio={playback.audio} settings={audioSettings} status={playback.status} />
       {dialogue ? (

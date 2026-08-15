@@ -14,6 +14,7 @@
 /.neoarchive-dev/
 /src-tauri/target/
 /src-tauri/binaries/
+/src-tauri/gen/
 __pycache__/
 *.pyc
 *.tsbuildinfo

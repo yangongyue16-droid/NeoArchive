@@ -38,9 +38,9 @@ export const sampleProject: StoryProject = {
               id: "cue-character-001",
               type: "character.enter",
               atMs: 0,
-              characterRef: "character/sakurako-idol",
-              animation: "Idle_01",
-              transform: { x: 0.5, y: 0.8, scale: 1.65 },
+              characterRef: "character/png-elf-standee",
+              animation: "idle",
+              transform: { x: 0.5, y: 0.72, scale: 1.05 },
             },
             {
               id: "cue-dialogue-001",

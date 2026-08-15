@@ -20,6 +20,12 @@ describe("asset catalog", () => {
     );
   });
 
+  it("resolves the curated PNG standee", () => {
+    expect(resolveCharacter("character/png-elf-standee")).toBe(
+      "/__research/curated/characters/png-elf-standee.png",
+    );
+  });
+
   it("keeps named story spines on the main ba-all-data tree", () => {
     expect(resolveCharacter("character/hasumi")).toBe(
       "/__research/ba-public-pack/ba-all-data/spine/hasumi_spr/hasumi_spr.skel",

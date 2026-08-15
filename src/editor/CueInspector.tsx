@@ -1,13 +1,23 @@
 import { useEffect, useState } from "react";
-import { audioChannelOptions, useAssetCatalog, type AssetOption } from "../assets/catalog";
-import type { CharacterTransform, StoryCue, TimeWheelConfig } from "../project-schema/types";
+import {
+  audioChannelOptions,
+  fetchCharacterExpressions,
+  getCharacterMetadata,
+  getKnownCharacterExpressions,
+  useAssetCatalog,
+  type AssetOption,
+  type ExpressionOption,
+} from "../assets/catalog";
+import { CharacterTransform, Scene, StoryCue, TimeWheelConfig } from "../project-schema/types";
 import type { EditableCuePatch } from "../state/editorStore";
 import { transitionPresets } from "../transitions/presets";
 
 type CueInspectorProps = {
   cue: StoryCue | null;
+  scenes?: Scene[];
   onUpdate: (patch: EditableCuePatch, field: string) => void;
   onOpenLibrary?: (kind: "audio" | "background" | "character") => void;
+  onCreateBranchScene?: () => string;
 };
 
 type PlacementControlProps = {
@@ -189,7 +199,86 @@ function AssetLibraryTrigger({
   );
 }
 
-export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps) {
+function ExpressionPicker({
+  characterRef,
+  currentAnimation,
+  onChange,
+}: {
+  characterRef: string;
+  currentAnimation?: string;
+  onChange: (animation: string) => void;
+}) {
+  const [expressions, setExpressions] = useState<ExpressionOption[]>(() =>
+    getKnownCharacterExpressions(characterRef),
+  );
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchCharacterExpressions(characterRef)
+      .then((list) => {
+        if (active) {
+          setExpressions(list);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [characterRef]);
+
+  const activeValue = (currentAnimation ?? "01").trim();
+
+  return (
+    <div className="expression-picker">
+      <div className="expression-picker-header">
+        <span className="picker-title">表情 / 差分动作（{expressions.length}）</span>
+        {loading ? <small className="loading-hint">加载表情中...</small> : null}
+      </div>
+      <div className="expression-chip-grid">
+        {expressions.map((expr) => {
+          const isSelected =
+            expr.value.toLowerCase() === activeValue.toLowerCase() ||
+            expr.rawName.toLowerCase() === activeValue.toLowerCase() ||
+            (activeValue.startsWith(expr.value) && expr.value !== "");
+          return (
+            <button
+              className={`expression-chip ${isSelected ? "is-selected" : ""} expression-chip-${expr.category}`}
+              key={expr.rawName || expr.value}
+              onClick={() => onChange(expr.value)}
+              title={expr.rawName}
+              type="button"
+            >
+              {expr.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="expression-custom-row">
+        <span>自定义动画/动作名：</span>
+        <input
+          onChange={(event) => onChange(event.currentTarget.value)}
+          placeholder="例如 01, 03_smile, Idle_01"
+          value={currentAnimation ?? ""}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function CueInspector({
+  cue,
+  onCreateBranchScene,
+  onOpenLibrary,
+  onUpdate,
+  scenes,
+}: CueInspectorProps) {
   const { audioOptions, backgroundOptions, characterOptions } = useAssetCatalog();
   if (!cue) {
     return <p className="empty-inspector">选择一条剧本行后在这里编辑。</p>;
@@ -203,6 +292,13 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
     onUpdate({ timeWheel: { ...timeWheel, ...patch } }, `timeWheel.${field}`);
   };
 
+  // Find all characters who have entered in the scene containing this cue
+  const parentScene = scenes?.find((s) => s.cues.some((c) => c.id === cue.id));
+  const enteredCharacters =
+    parentScene?.cues.filter(
+      (c): c is import("../project-schema/types").CharacterEnterCue => c.type === "character.enter",
+    ) ?? [];
+
   return (
     <>
       <div className="panel-heading inspector-heading">
@@ -213,6 +309,34 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
       </div>
       {cue.type === "dialogue.show" ? (
         <>
+          {enteredCharacters.length > 0 ? (
+            <div className="dialogue-character-sync-bar">
+              <span className="sync-bar-label">快捷填入入场角色：</span>
+              <div className="sync-chips-list">
+                {enteredCharacters.map((char) => {
+                  const meta = getCharacterMetadata(char.characterRef);
+                  const isCurrent = cue.speaker === meta.speaker;
+                  return (
+                    <button
+                      className={`sync-character-chip ${isCurrent ? "is-active" : ""}`}
+                      key={char.id}
+                      onClick={() => {
+                        onUpdate(
+                          { speaker: meta.speaker, subtitle: meta.subtitle },
+                          "speaker-sync",
+                        );
+                      }}
+                      title="点击填入该角色的名字与身份"
+                      type="button"
+                    >
+                      <strong>{meta.speaker}</strong>
+                      {meta.subtitle ? <small>{meta.subtitle}</small> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           <div className="field-row">
             <label>
               <span>说话人</span>
@@ -299,13 +423,11 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
             options={characterOptions}
             value={cue.characterRef}
           />
-          <label>
-            <span>Spine 动画</span>
-            <input
-              onChange={(event) => onUpdate({ animation: event.currentTarget.value }, "animation")}
-              value={cue.animation}
-            />
-          </label>
+          <ExpressionPicker
+            characterRef={cue.characterRef}
+            currentAnimation={cue.animation}
+            onChange={(animation) => onUpdate({ animation }, "animation")}
+          />
           <label>
             <span>入场前等待（ms）</span>
             <DeferredNumberInput
@@ -325,6 +447,49 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
           <CharacterPlacement
             onChange={(transform, field) => onUpdate({ transform }, field)}
             transform={cue.transform}
+          />
+        </>
+      ) : null}
+
+      {cue.type === "character.update" ? (
+        <>
+          <AssetLibraryTrigger
+            label="更新角色"
+            onOpen={() => onOpenLibrary?.("character")}
+            options={characterOptions}
+            value={cue.characterRef}
+          />
+          <ExpressionPicker
+            characterRef={cue.characterRef}
+            currentAnimation={cue.animation}
+            onChange={(animation) => onUpdate({ animation }, "animation")}
+          />
+          {cue.transform ? (
+            <CharacterPlacement
+              onChange={(transform, field) =>
+                onUpdate({ transform: { ...cue.transform, ...transform } }, field)
+              }
+              transform={{ x: 0.5, y: 0.72, scale: 1.05, ...cue.transform }}
+            />
+          ) : (
+            <button
+              className="button button-secondary button-small standalone-button"
+              onClick={() => onUpdate({ transform: { x: 0.5, y: 0.72, scale: 1.05 } }, "transform")}
+              type="button"
+            >
+              ＋ 添加位置/缩放调整
+            </button>
+          )}
+        </>
+      ) : null}
+
+      {cue.type === "character.exit" ? (
+        <>
+          <AssetLibraryTrigger
+            label="退场角色"
+            onOpen={() => onOpenLibrary?.("character")}
+            options={characterOptions}
+            value={cue.characterRef}
           />
         </>
       ) : null}
@@ -580,10 +745,136 @@ export function CueInspector({ cue, onOpenLibrary, onUpdate }: CueInspectorProps
       ) : null}
 
       {cue.type === "choice.show" ? (
-        <div className="inspector-note">
-          <strong>{cue.prompt ?? "选择"}</strong>
-          <span>{cue.options.length} 个选项；分支编辑将在流程模式接入。</span>
-        </div>
+        <section className="choice-cue-inspector">
+          <label>
+            <span>选择提示语（可选）</span>
+            <input
+              onChange={(event) => onUpdate({ prompt: event.currentTarget.value }, "prompt")}
+              placeholder="例如：请选择接下来的行动..."
+              value={cue.prompt ?? ""}
+            />
+          </label>
+          <div className="choice-options-header">
+            <strong>选项列表（{cue.options.length}）</strong>
+            <button
+              className="button button-secondary button-small"
+              onClick={() => {
+                const nextOptions = [
+                  ...cue.options,
+                  {
+                    id: `opt-${crypto.randomUUID()}`,
+                    label: `选项 ${String.fromCharCode(65 + cue.options.length)}`,
+                  },
+                ];
+                onUpdate({ options: nextOptions }, "options");
+              }}
+              type="button"
+            >
+              ＋ 添加选项
+            </button>
+          </div>
+          <div className="choice-options-list">
+            {cue.options.map((option, index) => (
+              <div className="choice-option-editor-card" key={option.id}>
+                <div className="choice-option-card-header">
+                  <span className="choice-option-index">
+                    选项 {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className="choice-option-card-actions">
+                    <button
+                      aria-label="上移选项"
+                      disabled={index === 0}
+                      onClick={() => {
+                        const nextOptions = [...cue.options];
+                        [nextOptions[index - 1], nextOptions[index]] = [
+                          nextOptions[index],
+                          nextOptions[index - 1],
+                        ];
+                        onUpdate({ options: nextOptions }, "options");
+                      }}
+                      type="button"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      aria-label="下移选项"
+                      disabled={index === cue.options.length - 1}
+                      onClick={() => {
+                        const nextOptions = [...cue.options];
+                        [nextOptions[index], nextOptions[index + 1]] = [
+                          nextOptions[index + 1],
+                          nextOptions[index],
+                        ];
+                        onUpdate({ options: nextOptions }, "options");
+                      }}
+                      type="button"
+                    >
+                      ↓
+                    </button>
+                    <button
+                      aria-label="删除选项"
+                      className="danger-text"
+                      disabled={cue.options.length <= 1}
+                      onClick={() => {
+                        const nextOptions = cue.options.filter((o) => o.id !== option.id);
+                        onUpdate({ options: nextOptions }, "options");
+                      }}
+                      type="button"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+                <label>
+                  <span>选项文案</span>
+                  <input
+                    onChange={(event) => {
+                      const nextOptions = cue.options.map((o) =>
+                        o.id === option.id ? { ...o, label: event.currentTarget.value } : o,
+                      );
+                      onUpdate({ options: nextOptions }, "option:label");
+                    }}
+                    placeholder="输入玩家点击的选项文案"
+                    value={option.label}
+                  />
+                </label>
+                <label>
+                  <span>点击后跳转场景</span>
+                  <select
+                    onChange={(event) => {
+                      const val = event.currentTarget.value;
+                      if (val === "__create_new__" && onCreateBranchScene) {
+                        const newSceneId = onCreateBranchScene();
+                        const nextOptions = cue.options.map((o) =>
+                          o.id === option.id ? { ...o, targetSceneId: newSceneId } : o,
+                        );
+                        onUpdate({ options: nextOptions }, "option:targetSceneId");
+                        return;
+                      }
+                      const nextOptions = cue.options.map((o) =>
+                        o.id === option.id
+                          ? { ...o, targetSceneId: val === "" ? undefined : val }
+                          : o,
+                      );
+                      onUpdate({ options: nextOptions }, "option:targetSceneId");
+                    }}
+                    value={option.targetSceneId ?? ""}
+                  >
+                    <option value="">[ 默认推进（沿用场景出口） ]</option>
+                    {scenes?.map((s, sIdx) => (
+                      <option key={s.id} value={s.id}>
+                        {String(sIdx + 1).padStart(2, "0")}. {s.title} ({s.id})
+                      </option>
+                    ))}
+                    {onCreateBranchScene ? (
+                      <option value="__create_new__">＋ 新建并连接到新场景...</option>
+                    ) : null}
+                  </select>
+                </label>
+              </div>
+            ))}
+          </div>
+        </section>
       ) : null}
     </>
   );

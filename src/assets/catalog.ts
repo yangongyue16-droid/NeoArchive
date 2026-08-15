@@ -41,6 +41,7 @@ const fallbackBackgrounds: Record<string, string> = {
 };
 
 const fallbackCharacters: Record<string, string> = {
+  "character/png-elf-standee": researchAsset("curated/characters/png-elf-standee.png"),
   "character/sakurako-idol": researchAsset(
     "extracted/characters/sakurako_pop_idol_0274/CH0274_spr.skel",
   ),
@@ -60,6 +61,11 @@ export const fallbackBackgroundOptions: AssetOption[] = [
 ];
 
 export const fallbackCharacterOptions: AssetOption[] = [
+  {
+    value: "character/png-elf-standee",
+    label: "PNG 立绘试做 · 半透明",
+    preview: researchAsset("curated/characters/png-elf-standee.png"),
+  },
   { value: "character/sakurako-idol", label: "Sakurako · Pop Idol" },
 ];
 
@@ -316,7 +322,13 @@ export function resolveAssetPreview(
   if (option.preview) {
     return toAssetUrl(option.preview);
   }
-  return kind === "background" ? resolveBackground(option.value) : null;
+  if (kind === "background") {
+    return resolveBackground(option.value);
+  }
+  const characterUrl = resolveCharacter(option.value);
+  return characterUrl && /\.(?:png|webp|jpe?g|gif)(?:\?|$)/i.test(characterUrl)
+    ? characterUrl
+    : null;
 }
 
 export function resolveAudio(assetRef: string): string | null {
@@ -340,6 +352,205 @@ export function resolveAudio(assetRef: string): string | null {
     return packAsset(`ba-all-data/${assetRef.slice("audio/".length)}`);
   }
   return null;
+}
+
+export type CharacterMetadata = {
+  speaker: string;
+  subtitle: string;
+};
+
+export type ExpressionOption = {
+  value: string;
+  label: string;
+  rawName: string;
+  category: "face" | "action" | "special";
+};
+
+const faceLabelMap: Record<string, string> = {
+  default: "默认",
+  defalt: "默认",
+  normal: "平常",
+  nomal: "平常",
+  respond: "说话/应答",
+  smile: "微笑/开心",
+  embarrass: "害羞/脸红",
+  embarassed: "害羞/脸红",
+  embarrassed: "害羞/脸红",
+  serious: "严肃/认真",
+  depressed: "沮丧/失落",
+  shout: "呼喊/激动",
+  angry: "生气",
+  surprised: "惊讶/疑惑",
+  eyeclose: "闭眼",
+  close: "闭眼",
+  wink: "眨眼",
+  relieved: "安心/放松",
+  panic: "慌张",
+  cry: "哭泣",
+  think: "思考",
+  fear: "害怕",
+};
+
+export function getCharacterMetadata(characterRef: string): CharacterMetadata {
+  if (characterRef === "character/sakurako-idol") {
+    return { speaker: "Sakurako", subtitle: "Trinity General School" };
+  }
+  if (characterRef === "character/png-elf-standee") {
+    return { speaker: "精灵", subtitle: "PNG 立绘试做" };
+  }
+
+  const options = getCharacterOptions();
+  const option = options.find((item) => item.value === characterRef);
+  if (!option) {
+    const raw = characterRef.replace(/^character\//, "");
+    return { speaker: raw, subtitle: "" };
+  }
+
+  let speaker = "";
+  let subtitle = "";
+
+  const parenMatch = option.label.match(/^([^(（]+)[(（]([^)）]+)[)）]/);
+  if (parenMatch) {
+    speaker = parenMatch[1].trim();
+    subtitle = parenMatch[2].trim();
+  } else {
+    const dotParts = option.label.split("·");
+    speaker = dotParts[0].trim();
+    if (dotParts.length > 1) {
+      subtitle = dotParts[1].trim();
+    }
+  }
+
+  return {
+    speaker: speaker || option.value,
+    subtitle,
+  };
+}
+
+export function formatExpressionOption(regionName: string): ExpressionOption {
+  if (/^s\d+_\d+$/i.test(regionName)) {
+    const num = regionName.split("_")[1];
+    return {
+      value: regionName,
+      label: `${regionName} · 姿势差分 ${num}`,
+      rawName: regionName,
+      category: "action",
+    };
+  }
+  const m = regionName.match(/^([a-zA-Z0-9]+)_(.+)$/);
+  if (m) {
+    const code = m[1];
+    const tag = m[2].toLowerCase();
+    const chinese = faceLabelMap[tag] || tag;
+    return {
+      value: code,
+      label: `${code} · ${chinese} (${regionName})`,
+      rawName: regionName,
+      category: /^s\d+/i.test(code) ? "action" : "face",
+    };
+  }
+  if (/^\d+$/.test(regionName)) {
+    return {
+      value: regionName,
+      label: `${regionName} · 表情差分 ${regionName}`,
+      rawName: regionName,
+      category: "face",
+    };
+  }
+  if (/^eye_?close/i.test(regionName)) {
+    return {
+      value: regionName,
+      label: `闭眼 · (${regionName})`,
+      rawName: regionName,
+      category: "face",
+    };
+  }
+  return {
+    value: regionName,
+    label: regionName,
+    rawName: regionName,
+    category: "special",
+  };
+}
+
+export const defaultExpressionPresets: ExpressionOption[] = [
+  { value: "00", label: "00 · 默认 (00_default)", rawName: "00_default", category: "face" },
+  { value: "01", label: "01 · 平常 (01_normal)", rawName: "01_normal", category: "face" },
+  { value: "02", label: "02 · 说话 (02_respond)", rawName: "02_respond", category: "face" },
+  { value: "03", label: "03 · 微笑 (03_smile)", rawName: "03_smile", category: "face" },
+  { value: "04", label: "04 · 害羞 (04_embarrass)", rawName: "04_embarrass", category: "face" },
+  { value: "05", label: "05 · 严肃 (05_serious)", rawName: "05_serious", category: "face" },
+  { value: "06", label: "06 · 沮丧 (06_depressed)", rawName: "06_depressed", category: "face" },
+];
+
+const expressionsCache = new Map<string, ExpressionOption[]>();
+
+export async function fetchCharacterExpressions(characterRef: string): Promise<ExpressionOption[]> {
+  if (expressionsCache.has(characterRef)) {
+    return expressionsCache.get(characterRef)!;
+  }
+
+  const skelUrl = resolveCharacter(characterRef);
+  if (!skelUrl || !skelUrl.endsWith(".skel")) {
+    return defaultExpressionPresets;
+  }
+
+  const atlasUrl = skelUrl.replace(/\.skel$/, ".atlas");
+  try {
+    const response = await fetch(atlasUrl);
+    if (!response.ok) {
+      expressionsCache.set(characterRef, defaultExpressionPresets);
+      return defaultExpressionPresets;
+    }
+    const text = await response.text();
+    const lines = text.split(/\r?\n/);
+    const regions: string[] = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (
+        !trimmed ||
+        trimmed.includes(":") ||
+        trimmed.endsWith(".png") ||
+        trimmed.endsWith(".jpg") ||
+        trimmed.startsWith("size") ||
+        trimmed.startsWith("format") ||
+        trimmed.startsWith("filter") ||
+        trimmed.startsWith("repeat")
+      ) {
+        continue;
+      }
+      regions.push(trimmed);
+    }
+
+    const seenValues = new Set<string>();
+    const options: ExpressionOption[] = [];
+
+    for (const region of regions) {
+      const isFaceOrAnim =
+        /^(?:\d+|s\d+|eye_?close)/i.test(region) ||
+        Object.keys(faceLabelMap).some((tag) => region.toLowerCase().includes(tag));
+      if (!isFaceOrAnim) {
+        continue;
+      }
+
+      const formatted = formatExpressionOption(region);
+      if (!seenValues.has(formatted.value)) {
+        seenValues.add(formatted.value);
+        options.push(formatted);
+      }
+    }
+
+    const result = options.length > 0 ? options : defaultExpressionPresets;
+    expressionsCache.set(characterRef, result);
+    return result;
+  } catch {
+    expressionsCache.set(characterRef, defaultExpressionPresets);
+    return defaultExpressionPresets;
+  }
+}
+
+export function getKnownCharacterExpressions(characterRef: string): ExpressionOption[] {
+  return expressionsCache.get(characterRef) ?? defaultExpressionPresets;
 }
 
 export function useAssetCatalog() {

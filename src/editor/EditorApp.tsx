@@ -11,9 +11,10 @@ import { CueInspector } from "./CueInspector";
 import { AudioLibrary, type AudioLibraryMode } from "./AudioLibrary";
 import { VisualAssetLibrary } from "./VisualAssetLibrary";
 import { ScriptTimeline } from "./ScriptTimeline";
+import { FlowWorkspace } from "./FlowWorkspace";
 
 type ThemeMode = "day" | "night";
-type WorkMode = "script" | "stage";
+type WorkMode = "script" | "stage" | "flow";
 
 export function EditorApp() {
   const project = useEditorStore((state) => state.project);
@@ -27,6 +28,10 @@ export function EditorApp() {
   const addScene = useEditorStore((state) => state.addScene);
   const renameScene = useEditorStore((state) => state.renameScene);
   const setSceneAutoAdvance = useEditorStore((state) => state.setSceneAutoAdvance);
+  const setSceneNext = useEditorStore((state) => state.setSceneNext);
+  const setEntryScene = useEditorStore((state) => state.setEntryScene);
+  const addBranchScene = useEditorStore((state) => state.addBranchScene);
+  const updateChoiceOption = useEditorStore((state) => state.updateChoiceOption);
   const deleteScene = useEditorStore((state) => state.deleteScene);
   const addCue = useEditorStore((state) => state.addCue);
   const addAudioCue = useEditorStore((state) => state.addAudioCue);
@@ -151,7 +156,11 @@ export function EditorApp() {
           >
             舞台
           </button>
-          <button disabled type="button">
+          <button
+            className={workMode === "flow" ? "is-active" : ""}
+            onClick={() => setWorkMode("flow")}
+            type="button"
+          >
             流程
           </button>
           <button
@@ -269,151 +278,178 @@ export function EditorApp() {
         </button>
       ) : null}
 
-      <section className="workspace">
-        <aside className="panel scene-panel" aria-label="场景列表">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">{project.chapters[0]?.title.toUpperCase()}</p>
-              <h2>场景管理</h2>
-            </div>
-            <button className="icon-button" onClick={addScene} type="button" aria-label="添加场景">
-              ＋
-            </button>
-          </div>
-          <nav className="scene-list">
-            {getAllScenes(project).map((scene, index) => (
+      {workMode === "flow" ? (
+        <FlowWorkspace
+          onAddBranchScene={addBranchScene}
+          onAddScene={() => addScene()}
+          onDeleteScene={deleteScene}
+          onEditScript={(sceneId) => {
+            selectScene(sceneId);
+            setWorkMode("script");
+          }}
+          onSelectScene={selectScene}
+          onSetEntryScene={setEntryScene}
+          onSetSceneNext={setSceneNext}
+          onUpdateChoiceOption={(sceneId, cueId, optionId, patch) =>
+            updateChoiceOption(sceneId, cueId, optionId, patch)
+          }
+          project={project}
+          selectedSceneId={activeScene.id}
+        />
+      ) : (
+        <section className="workspace">
+          <aside className="panel scene-panel" aria-label="场景列表">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">{project.chapters[0]?.title.toUpperCase()}</p>
+                <h2>场景管理</h2>
+              </div>
               <button
-                className={`scene-item ${scene.id === activeScene.id ? "is-active" : ""}`}
-                key={scene.id}
-                onClick={() => selectScene(scene.id)}
+                className="icon-button"
+                onClick={() => addScene()}
                 type="button"
+                aria-label="添加场景"
               >
-                <span className="scene-index">{String(index + 1).padStart(2, "0")}</span>
-                <span className="scene-copy">
-                  <strong>{scene.title}</strong>
-                  <small>{scene.cues.length} cues</small>
-                </span>
+                ＋
               </button>
-            ))}
-          </nav>
-          <div className="scene-editor">
-            <label>
-              <span>场景名称</span>
-              <input
-                onChange={(event) => renameScene(activeScene.id, event.currentTarget.value)}
-                value={activeScene.title}
-              />
-            </label>
-            <label>
-              <span>AUTO 每句停留（秒）</span>
-              <input
-                min={0.25}
-                onChange={(event) => {
-                  const rawValue = event.currentTarget.value;
-                  if (rawValue === "") {
-                    setSceneAutoAdvance(activeScene.id, undefined);
-                    return;
+            </div>
+            <nav className="scene-list">
+              {getAllScenes(project).map((scene, index) => (
+                <button
+                  className={`scene-item ${scene.id === activeScene.id ? "is-active" : ""}`}
+                  key={scene.id}
+                  onClick={() => selectScene(scene.id)}
+                  type="button"
+                >
+                  <span className="scene-index">{String(index + 1).padStart(2, "0")}</span>
+                  <span className="scene-copy">
+                    <strong>{scene.title}</strong>
+                    <small>{scene.cues.length} cues</small>
+                  </span>
+                </button>
+              ))}
+            </nav>
+            <div className="scene-editor">
+              <label>
+                <span>场景名称</span>
+                <input
+                  onChange={(event) => renameScene(activeScene.id, event.currentTarget.value)}
+                  value={activeScene.title}
+                />
+              </label>
+              <label>
+                <span>AUTO 每句停留（秒）</span>
+                <input
+                  min={0.25}
+                  onChange={(event) => {
+                    const rawValue = event.currentTarget.value;
+                    if (rawValue === "") {
+                      setSceneAutoAdvance(activeScene.id, undefined);
+                      return;
+                    }
+                    const seconds = Number(rawValue);
+                    setSceneAutoAdvance(
+                      activeScene.id,
+                      Number.isFinite(seconds)
+                        ? Math.max(250, Math.round(seconds * 1000))
+                        : undefined,
+                    );
+                  }}
+                  placeholder="自适应"
+                  step={0.25}
+                  type="number"
+                  value={
+                    activeScene.autoAdvanceMs === undefined ? "" : activeScene.autoAdvanceMs / 1000
                   }
-                  const seconds = Number(rawValue);
-                  setSceneAutoAdvance(
-                    activeScene.id,
-                    Number.isFinite(seconds)
-                      ? Math.max(250, Math.round(seconds * 1000))
-                      : undefined,
-                  );
-                }}
-                placeholder="自适应"
-                step={0.25}
-                type="number"
-                value={
-                  activeScene.autoAdvanceMs === undefined ? "" : activeScene.autoAdvanceMs / 1000
-                }
-              />
-              <small>留空则按文字长度自动计算</small>
-            </label>
-            <button
-              className="danger-button"
-              disabled={getAllScenes(project).length <= 1}
-              onClick={() => deleteScene(activeScene.id)}
-              type="button"
-            >
-              删除当前场景
-            </button>
-          </div>
-        </aside>
-
-        <section className="stage-column">
-          <div className="stage-toolbar">
-            <span>
-              16:9 即时预览 · {playback.status} · {selectedCue?.type ?? "empty"}
-            </span>
-            <div className="toolbar-group" aria-label="舞台工具">
-              <span className="live-preview-badge">LIVE</span>
+                />
+                <small>留空则按文字长度自动计算</small>
+              </label>
               <button
-                onClick={() => runtime.preview(activeScene.id, selectedCue?.id, true)}
+                className="danger-button"
+                disabled={getAllScenes(project).length <= 1}
+                onClick={() => deleteScene(activeScene.id)}
                 type="button"
               >
-                刷新当前行
-              </button>
-              <button onClick={() => runtime.start(activeScene.id)} type="button">
-                播放场景
-              </button>
-              <button onClick={() => setAudioLibraryMode("music")} type="button">
-                音乐库
-              </button>
-              <button onClick={() => setAudioLibraryMode("sfx")} type="button">
-                音效库
+                删除当前场景
               </button>
             </div>
-          </div>
+          </aside>
 
-          <StoryStage
-            instantText
-            onAdvance={() => runtime.advance()}
-            onBackgroundTransitionComplete={runtime.notifyBackgroundTransitionCompleted}
-            onCharacterEnterComplete={runtime.notifyCharacterEnterCompleted}
-            onChoose={(optionId) => runtime.choose(optionId)}
-            onTransitionComplete={runtime.notifyTransitionCompleted}
-            onTransitionCover={runtime.notifyTransitionCovered}
-            playback={playback}
-          />
+          <section className="stage-column">
+            <div className="stage-toolbar">
+              <span>
+                16:9 即时预览 · {playback.status} · {selectedCue?.type ?? "empty"}
+              </span>
+              <div className="toolbar-group" aria-label="舞台工具">
+                <span className="live-preview-badge">LIVE</span>
+                <button
+                  onClick={() => runtime.preview(activeScene.id, selectedCue?.id, true)}
+                  type="button"
+                >
+                  刷新当前行
+                </button>
+                <button onClick={() => runtime.start(activeScene.id)} type="button">
+                  播放场景
+                </button>
+                <button onClick={() => setAudioLibraryMode("music")} type="button">
+                  音乐库
+                </button>
+                <button onClick={() => setAudioLibraryMode("sfx")} type="button">
+                  音效库
+                </button>
+              </div>
+            </div>
 
-          <ScriptTimeline
-            onAdd={(type) => addCue(activeScene.id, type)}
-            onDelete={(cueId) => deleteCue(activeScene.id, cueId)}
-            onDuplicate={(cueId) => duplicateCue(activeScene.id, cueId)}
-            onMove={(cueId, direction) => moveCue(activeScene.id, cueId, direction)}
-            onReorder={(cueId, targetCueId, edge) =>
-              reorderCue(activeScene.id, cueId, targetCueId, edge)
-            }
-            onSelect={selectCue}
-            scene={activeScene}
-            selectedCueId={selectedCue?.id ?? null}
-          />
+            <StoryStage
+              instantText
+              onAdvance={() => runtime.advance()}
+              onBackgroundTransitionComplete={runtime.notifyBackgroundTransitionCompleted}
+              onCharacterEnterComplete={runtime.notifyCharacterEnterCompleted}
+              onChoose={(optionId) => runtime.choose(optionId)}
+              onTransitionComplete={runtime.notifyTransitionCompleted}
+              onTransitionCover={runtime.notifyTransitionCovered}
+              playback={playback}
+            />
+
+            <ScriptTimeline
+              onAdd={(type) => addCue(activeScene.id, type)}
+              onDelete={(cueId) => deleteCue(activeScene.id, cueId)}
+              onDuplicate={(cueId) => duplicateCue(activeScene.id, cueId)}
+              onMove={(cueId, direction) => moveCue(activeScene.id, cueId, direction)}
+              onReorder={(cueId, targetCueId, edge) =>
+                reorderCue(activeScene.id, cueId, targetCueId, edge)
+              }
+              onSelect={selectCue}
+              scene={activeScene}
+              selectedCueId={selectedCue?.id ?? null}
+            />
+          </section>
+
+          <aside className="panel inspector" aria-label="属性面板">
+            <CueInspector
+              cue={selectedCue}
+              onCreateBranchScene={() => addBranchScene(activeScene.id)}
+              onOpenLibrary={(kind) => {
+                if (kind === "audio") {
+                  setAudioLibraryMode(
+                    selectedCue?.type === "audio.play" && selectedCue.channel === "sfx"
+                      ? "sfx"
+                      : "music",
+                  );
+                } else {
+                  setVisualLibraryKind(kind);
+                }
+              }}
+              onUpdate={(patch, field) => {
+                if (selectedCue) {
+                  updateCue(activeScene.id, selectedCue.id, patch, field);
+                }
+              }}
+              scenes={getAllScenes(project)}
+            />
+          </aside>
         </section>
-
-        <aside className="panel inspector" aria-label="属性面板">
-          <CueInspector
-            cue={selectedCue}
-            onOpenLibrary={(kind) => {
-              if (kind === "audio") {
-                setAudioLibraryMode(
-                  selectedCue?.type === "audio.play" && selectedCue.channel === "sfx"
-                    ? "sfx"
-                    : "music",
-                );
-              } else {
-                setVisualLibraryKind(kind);
-              }
-            }}
-            onUpdate={(patch, field) => {
-              if (selectedCue) {
-                updateCue(activeScene.id, selectedCue.id, patch, field);
-              }
-            }}
-          />
-        </aside>
-      </section>
+      )}
       {audioLibraryMode ? (
         <AudioLibrary
           mode={audioLibraryMode}
@@ -444,7 +480,11 @@ export function EditorApp() {
                 if (addedCueId)
                   updateCue(activeScene.id, addedCueId, { assetRef }, "visualLibrary");
               }
-            } else if (selectedCue?.type === "character.enter") {
+            } else if (
+              selectedCue?.type === "character.enter" ||
+              selectedCue?.type === "character.update" ||
+              selectedCue?.type === "character.exit"
+            ) {
               updateCue(
                 activeScene.id,
                 selectedCue.id,
@@ -463,7 +503,10 @@ export function EditorApp() {
           selectedAssetRef={
             visualLibraryKind === "background" && selectedCue?.type === "background.set"
               ? selectedCue.assetRef
-              : visualLibraryKind === "character" && selectedCue?.type === "character.enter"
+              : visualLibraryKind === "character" &&
+                  (selectedCue?.type === "character.enter" ||
+                    selectedCue?.type === "character.update" ||
+                    selectedCue?.type === "character.exit")
                 ? selectedCue.characterRef
                 : undefined
           }

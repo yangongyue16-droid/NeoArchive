@@ -54,8 +54,11 @@ function cueSummary(cue: StoryCue): string {
 const addActions: Array<{ label: string; type: AddableCueType }> = [
   { label: "+ 对白", type: "dialogue.show" },
   { label: "+ 角色", type: "character.enter" },
+  { label: "+ 差分", type: "character.update" },
+  { label: "+ 退场", type: "character.exit" },
   { label: "+ 背景", type: "background.set" },
   { label: "+ 音频", type: "audio.play" },
+  { label: "+ 选择", type: "choice.show" },
   { label: "+ 过场", type: "transition.play" },
   { label: "+ 等待", type: "wait" },
 ];
