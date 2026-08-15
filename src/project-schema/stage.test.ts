@@ -7,7 +7,7 @@ describe("stage settings", () => {
       aspect: "16:9",
       width: 1920,
       height: 1080,
-      backgroundFit: "contain",
+      backgroundFit: "cover",
     });
   });
 
@@ -16,7 +16,7 @@ describe("stage settings", () => {
       aspect: "9:16",
       width: 1080,
       height: 1920,
-      backgroundFit: "contain",
+      backgroundFit: "cover",
     });
   });
 
@@ -25,7 +25,7 @@ describe("stage settings", () => {
       aspect: "custom",
       width: 1280,
       height: 800,
-      backgroundFit: "contain",
+      backgroundFit: "cover",
     });
     expect(stageSummary({ aspect: "custom", width: 1280, height: 800 })).toBe("1280×800 · 自定义");
   });

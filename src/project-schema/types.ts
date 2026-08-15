@@ -15,6 +15,7 @@ export type BackgroundSetCue = BaseCue & {
   type: "background.set";
   assetRef: string;
   transitionMs?: number;
+  waitForMediaEnd?: boolean;
 };
 
 export type CharacterEnterCue = BaseCue & {
@@ -38,6 +39,12 @@ export type CharacterExitCue = BaseCue & {
   characterRef: string;
 };
 
+export type AdvanceWhen = {
+  text?: boolean;
+  voice?: boolean;
+  backgroundVideo?: boolean;
+};
+
 export type DialogueShowCue = BaseCue & {
   type: "dialogue.show";
   speaker: string;
@@ -46,6 +53,7 @@ export type DialogueShowCue = BaseCue & {
   typingCps: number;
   waitForAdvance: boolean;
   holdAfterMs?: number;
+  advanceWhen?: AdvanceWhen;
   voiceAssetRef?: string;
   voiceStartMs?: number;
 };
@@ -148,6 +156,28 @@ export function resolveDialogueHoldMs(
     return Math.max(0, scene.autoAdvanceMs);
   }
   return Math.max(850, cue.text.length * 42);
+}
+
+export function resolveAdvanceWhen(cue: {
+  voiceAssetRef?: string;
+  advanceWhen?: AdvanceWhen;
+}): Required<AdvanceWhen> {
+  return {
+    text: cue.advanceWhen?.text ?? true,
+    voice: cue.advanceWhen?.voice ?? Boolean(cue.voiceAssetRef),
+    backgroundVideo: cue.advanceWhen?.backgroundVideo ?? false,
+  };
+}
+
+export function gatesSatisfied(
+  required: Required<AdvanceWhen>,
+  ready: Required<AdvanceWhen>,
+): boolean {
+  return (
+    (!required.text || ready.text) &&
+    (!required.voice || ready.voice) &&
+    (!required.backgroundVideo || ready.backgroundVideo)
+  );
 }
 
 export type Chapter = {

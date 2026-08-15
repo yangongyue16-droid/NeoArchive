@@ -1,4 +1,15 @@
+import { normalizeStageSettings } from "./stage";
 import type { StoryProject } from "./types";
+
+function withCoverBackground(project: StoryProject): StoryProject {
+  if (project.stage?.backgroundFit === "fill") {
+    return project;
+  }
+  return {
+    ...project,
+    stage: { ...normalizeStageSettings(project.stage), backgroundFit: "cover" },
+  };
+}
 
 const draftStorageKey = "neoarchive:project-draft:v1";
 
@@ -38,7 +49,7 @@ export function parseProjectFile(contents: string): StoryProject {
   if (!isStoryProject(parsed)) {
     throw new Error("文件不是有效的 NeoArchive schemaVersion 1 工程。");
   }
-  return parsed;
+  return withCoverBackground(parsed);
 }
 
 export function loadDraftProject(): StoryProject | null {

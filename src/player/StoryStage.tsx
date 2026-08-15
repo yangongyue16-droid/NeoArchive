@@ -31,10 +31,13 @@ type StoryStageProps = {
   onAdvance?: () => void;
   onChoose?: (optionId: string) => void;
   onDialogueComplete?: () => void;
+  onVoiceEnded?: (cueId?: string) => void;
+  onBackgroundVideoEnded?: (instanceId: number) => void;
   onBackgroundTransitionComplete?: (instanceId: number) => void;
   onCharacterEnterComplete?: (instanceId: number) => void;
   onTransitionComplete?: (instanceId: number) => void;
   onTransitionCover?: (instanceId: number) => void;
+  hideHud?: boolean;
   layoutEdit?: boolean;
   onDialogueBoxChange?: (
     patch: Partial<DialogueBoxSettings> & {
@@ -46,13 +49,20 @@ type StoryStageProps = {
   ) => void;
 };
 
-function StoryAudio({ audio }: { audio: RuntimeAudio }) {
+function StoryAudio({
+  audio,
+  onEnded,
+}: {
+  audio: RuntimeAudio;
+  onEnded?: (cueId?: string) => void;
+}) {
   const source = resolveAudio(audio.assetRef);
   return source ? (
     <audio
       autoPlay
       key={`${audio.channel}:${audio.cueId ?? ""}:${audio.assetRef}:${audio.startMs ?? 0}`}
       loop={audio.loop}
+      onEnded={() => onEnded?.(audio.cueId)}
       onLoadedMetadata={(event) => {
         if ((audio.startMs ?? 0) > 0) {
           event.currentTarget.currentTime = audio.startMs! / 1000;
@@ -176,10 +186,13 @@ export function StoryStage({
   onAdvance,
   onChoose,
   onDialogueComplete,
+  onVoiceEnded,
+  onBackgroundVideoEnded,
   onBackgroundTransitionComplete,
   onCharacterEnterComplete,
   onTransitionComplete,
   onTransitionCover,
+  hideHud = false,
   layoutEdit = false,
   onDialogueBoxChange,
 }: StoryStageProps) {
@@ -270,9 +283,19 @@ export function StoryStage({
           autoPlay
           className="stage-background"
           key={playback.backgroundInstanceId}
-          loop
+          loop={!playback.backgroundWaitForMediaEnd}
           muted
-          onAnimationEnd={() => onBackgroundTransitionComplete?.(playback.backgroundInstanceId)}
+          onAnimationEnd={() => {
+            if (!playback.backgroundWaitForMediaEnd) {
+              onBackgroundTransitionComplete?.(playback.backgroundInstanceId);
+            }
+          }}
+          onEnded={() => {
+            onBackgroundVideoEnded?.(playback.backgroundInstanceId);
+            if (playback.backgroundWaitForMediaEnd) {
+              onBackgroundTransitionComplete?.(playback.backgroundInstanceId);
+            }
+          }}
           playsInline
           src={background.url}
           style={{ animationDuration: `${playback.backgroundTransitionMs}ms` }}
@@ -304,9 +327,15 @@ export function StoryStage({
         ) : null;
       })}
       {Object.values(playback.audio).map((audio) =>
-        audio ? <StoryAudio audio={audio} key={audio.channel} /> : null,
+        audio ? (
+          <StoryAudio
+            audio={audio}
+            key={audio.channel}
+            onEnded={audio.channel === "voice" ? onVoiceEnded : undefined}
+          />
+        ) : null,
       )}
-      {dialogue || layoutEdit ? (
+      {(dialogue || layoutEdit) && !hideHud ? (
         <DialogueLayer
           dialogueBox={dialogueBox}
           layoutEdit={layoutEdit}
@@ -320,7 +349,7 @@ export function StoryStage({
           }
         />
       ) : null}
-      {textComplete && dialogue && !layoutEdit ? (
+      {textComplete && dialogue && !layoutEdit && !hideHud ? (
         <span className="continue-indicator" aria-hidden="true" />
       ) : null}
       {playback.choices.length > 0 ? (

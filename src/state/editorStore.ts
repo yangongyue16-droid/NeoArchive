@@ -47,8 +47,10 @@ export type EditableCuePatch = Partial<{
   voiceAssetRef?: string;
   voiceStartMs?: number;
   holdAfterMs?: number;
+  advanceWhen?: import("../project-schema/types").AdvanceWhen;
   volume: number;
   waitForAdvance: boolean;
+  waitForMediaEnd?: boolean;
 }>;
 
 type EditorState = {

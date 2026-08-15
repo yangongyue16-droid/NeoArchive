@@ -257,8 +257,55 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
               type="number"
               value={cue.holdAfterMs === undefined ? "" : cue.holdAfterMs / 1000}
             />
-            <small>打字/语音结束后再等这么久切下一句。成品和幕前共用。</small>
+            <small>勾中的条件都满足后，再等这么久切下一句。成品和幕前共用。</small>
           </label>
+          <fieldset className="advance-when">
+            <legend>自动切下一句，等这些都完成</legend>
+            <label className="checkbox-field">
+              <input
+                checked={cue.advanceWhen?.text ?? true}
+                onChange={(event) =>
+                  onUpdate(
+                    { advanceWhen: { ...cue.advanceWhen, text: event.currentTarget.checked } },
+                    "advanceWhen",
+                  )
+                }
+                type="checkbox"
+              />
+              <span>文字打完</span>
+            </label>
+            <label className="checkbox-field">
+              <input
+                checked={cue.advanceWhen?.voice ?? Boolean(cue.voiceAssetRef)}
+                onChange={(event) =>
+                  onUpdate(
+                    { advanceWhen: { ...cue.advanceWhen, voice: event.currentTarget.checked } },
+                    "advanceWhen",
+                  )
+                }
+                type="checkbox"
+              />
+              <span>语音播完</span>
+            </label>
+            <label className="checkbox-field">
+              <input
+                checked={cue.advanceWhen?.backgroundVideo ?? false}
+                onChange={(event) =>
+                  onUpdate(
+                    {
+                      advanceWhen: {
+                        ...cue.advanceWhen,
+                        backgroundVideo: event.currentTarget.checked,
+                      },
+                    },
+                    "advanceWhen",
+                  )
+                }
+                type="checkbox"
+              />
+              <span>背景视频播完</span>
+            </label>
+          </fieldset>
         </>
       ) : null}
 
@@ -312,6 +359,18 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
               type="number"
               value={cue.transitionMs ?? 0}
             />
+          </label>
+          <label className="checkbox-field">
+            <input
+              checked={
+                cue.waitForMediaEnd ?? /\.(?:m4v|mkv|mov|mp4|webm)(?:$|[?#])/i.test(cue.assetRef)
+              }
+              onChange={(event) =>
+                onUpdate({ waitForMediaEnd: event.currentTarget.checked }, "waitForMediaEnd")
+              }
+              type="checkbox"
+            />
+            <span>等视频播完再切下一句</span>
           </label>
         </>
       ) : null}

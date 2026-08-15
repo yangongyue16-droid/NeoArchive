@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parseProjectFile, serializeProject } from "./projectFile";
 import { sampleProject } from "./sampleProject";
-import { resolveDialogueHoldMs } from "./types";
+import { gatesSatisfied, resolveAdvanceWhen, resolveDialogueHoldMs } from "./types";
 
 describe("project files", () => {
   it("round-trips a versioned NeoArchive project", () => {
@@ -22,5 +22,25 @@ describe("dialogue hold", () => {
     expect(resolveDialogueHoldMs({ text: "你好", holdAfterMs: 2500 })).toBe(2500);
     expect(resolveDialogueHoldMs({ text: "你好" }, { autoAdvanceMs: 1200 })).toBe(1200);
     expect(resolveDialogueHoldMs({ text: "你好世界" })).toBe(850);
+  });
+
+  it("defaults voice-wait when a line has voice, and waits for all checked gates", () => {
+    expect(resolveAdvanceWhen({ voiceAssetRef: "user:voice" })).toEqual({
+      text: true,
+      voice: true,
+      backgroundVideo: false,
+    });
+    expect(
+      gatesSatisfied(
+        { text: true, voice: true, backgroundVideo: false },
+        { text: true, voice: false, backgroundVideo: true },
+      ),
+    ).toBe(false);
+    expect(
+      gatesSatisfied(
+        { text: true, voice: true, backgroundVideo: false },
+        { text: true, voice: true, backgroundVideo: false },
+      ),
+    ).toBe(true);
   });
 });

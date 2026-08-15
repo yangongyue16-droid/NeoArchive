@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { loadDraftProject } from "../project-schema/projectFile";
 import { sampleProject } from "../project-schema/sampleProject";
-import { findScene, resolveDialogueHoldMs } from "../project-schema/types";
 import { StoryRuntime, type RuntimeDialogue, type SaveSnapshot } from "../runtime/StoryRuntime";
+import { useAutoAdvance } from "../runtime/useAutoAdvance";
 import { useDialogueFont } from "../assets/useDialogueFont";
 import { StoryStage } from "./StoryStage";
 
@@ -40,11 +40,12 @@ export function PlayerApp() {
   );
   const [autoMode, setAutoMode] = useState(true);
   const [skipMode, setSkipMode] = useState(false);
-  const [uiHidden, setUiHidden] = useState(false);
+  const [chromeHidden, setChromeHidden] = useState(true);
+  const [hudHidden, setHudHidden] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [completedCueId, setCompletedCueId] = useState<string | null>(null);
+  const autoAdvance = useAutoAdvance(project, playback, runtime, autoMode);
   const [currentWasRead, setCurrentWasRead] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const readIds = useMemo(readDialogueIds, []);
@@ -59,7 +60,6 @@ export function PlayerApp() {
     if (!dialogue) {
       return;
     }
-    setCompletedCueId(null);
     setCurrentWasRead(readIds.has(dialogue.cueId));
     setHistory((current) => {
       if (current.at(-1)?.cueId === dialogue.cueId) {
@@ -71,35 +71,22 @@ export function PlayerApp() {
 
   useEffect(() => {
     const dialogue = playback.dialogue;
-    if (!dialogue || playback.status !== "waiting_user" || playback.choices.length > 0) {
+    if (
+      !dialogue ||
+      playback.status !== "waiting_user" ||
+      playback.choices.length > 0 ||
+      !skipMode ||
+      !currentWasRead
+    ) {
       return;
     }
-    const shouldAdvanceForSkip = skipMode && currentWasRead;
-    const shouldAdvanceForAuto = autoMode && completedCueId === dialogue.cueId;
-    if (!shouldAdvanceForSkip && !shouldAdvanceForAuto) {
-      return;
-    }
-    const scene = playback.sceneId ? findScene(project, playback.sceneId) : undefined;
-    const dialogueCue = scene?.cues.find(
-      (cue) => cue.id === dialogue.cueId && cue.type === "dialogue.show",
-    );
-    const delay = shouldAdvanceForSkip
-      ? 70
-      : resolveDialogueHoldMs(
-          dialogueCue?.type === "dialogue.show" ? dialogueCue : { text: dialogue.text },
-          scene,
-        );
-    const timer = window.setTimeout(() => runtime.advance(), delay);
+    const timer = window.setTimeout(() => runtime.advance(), 70);
     return () => window.clearTimeout(timer);
   }, [
-    autoMode,
-    completedCueId,
     currentWasRead,
     playback.choices.length,
     playback.dialogue,
     playback.status,
-    playback.sceneId,
-    project,
     runtime,
     skipMode,
   ]);
@@ -115,18 +102,22 @@ export function PlayerApp() {
         await document.exitFullscreen();
       }
       setFullscreen(next);
-      setUiHidden(next);
     } catch {
       setFullscreen(next);
-      setUiHidden(next);
     }
   }, []);
 
   useEffect(() => {
     void setExclusiveFullscreen(true);
+    setChromeHidden(true);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         void setExclusiveFullscreen(false);
+        return;
+      }
+      if (event.key === "h" || event.key === "H") {
+        setChromeHidden((current) => !current);
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -141,10 +132,10 @@ export function PlayerApp() {
     if (!cueId) {
       return;
     }
-    setCompletedCueId(cueId);
+    autoAdvance.markTextComplete(cueId);
     readIds.add(cueId);
     window.localStorage.setItem(readStorageKey, JSON.stringify([...readIds]));
-  }, [readIds, runtime]);
+  }, [autoAdvance, readIds, runtime]);
 
   const quickSave = () => {
     window.localStorage.setItem(quickSaveKey, JSON.stringify(runtime.createSaveSnapshot()));
@@ -166,7 +157,13 @@ export function PlayerApp() {
   };
 
   return (
-    <main className={`player-shell ${uiHidden ? "is-ui-hidden" : ""}`}>
+    <main
+      className={`player-shell ${chromeHidden ? "is-chrome-hidden" : ""}`}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        setHudHidden((current) => !current);
+      }}
+    >
       <header className="player-toolbar">
         <button
           onClick={() => {
@@ -189,11 +186,14 @@ export function PlayerApp() {
       </header>
       <section className="player-stage-wrap stage-fit">
         <StoryStage
+          hideHud={hudHidden}
           stage={project.stage}
           dialogueBox={project.dialogueBox}
           onAdvance={() => runtime.advance()}
           onChoose={(optionId) => runtime.choose(optionId)}
           onDialogueComplete={handleDialogueComplete}
+          onVoiceEnded={autoAdvance.markVoiceEnded}
+          onBackgroundVideoEnded={autoAdvance.markBackgroundVideoEnded}
           onBackgroundTransitionComplete={runtime.notifyBackgroundTransitionCompleted}
           onCharacterEnterComplete={runtime.notifyCharacterEnterCompleted}
           onTransitionComplete={runtime.notifyTransitionCompleted}
@@ -228,8 +228,15 @@ export function PlayerApp() {
         <button onClick={quickLoad} type="button">
           快速读取
         </button>
-        <button onClick={() => setUiHidden(true)} type="button">
+        <button onClick={() => setChromeHidden(true)} type="button">
           隐藏 UI
+        </button>
+        <button
+          className={hudHidden ? "is-active" : ""}
+          onClick={() => setHudHidden((current) => !current)}
+          type="button"
+        >
+          {hudHidden ? "显示对话框" : "隐藏对话框"}
         </button>
         <button
           className={fullscreen ? "is-active" : ""}
@@ -243,19 +250,8 @@ export function PlayerApp() {
         </button>
       </footer>
 
-      {uiHidden ? (
-        <button
-          className="show-ui-button"
-          onClick={() => {
-            setUiHidden(false);
-            if (fullscreen) {
-              void setExclusiveFullscreen(false);
-            }
-          }}
-          type="button"
-        >
-          显示 UI
-        </button>
+      {chromeHidden ? (
+        <div className="player-reveal-zone" onMouseEnter={() => setChromeHidden(false)} />
       ) : null}
 
       {historyOpen ? (

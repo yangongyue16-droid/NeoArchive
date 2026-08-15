@@ -34,6 +34,10 @@ export type RuntimeAudio = {
   cueId?: string;
 };
 
+function looksLikeVideoAsset(assetRef: string): boolean {
+  return /\.(?:m4v|mkv|mov|mp4|webm)(?:$|[?#])/i.test(assetRef);
+}
+
 function withoutDialogueVoice(state: PlaybackState): PlaybackState {
   if (!state.audio.voice) {
     return state;
@@ -63,6 +67,7 @@ export type PlaybackState = {
   backgroundCueId: string | null;
   backgroundInstanceId: number;
   backgroundTransitionMs: number;
+  backgroundWaitForMediaEnd: boolean;
   characters: RuntimeCharacter[];
   dialogue: RuntimeDialogue | null;
   choicePrompt: string | null;
@@ -88,6 +93,7 @@ const initialState: PlaybackState = {
   backgroundCueId: null,
   backgroundInstanceId: 0,
   backgroundTransitionMs: 0,
+  backgroundWaitForMediaEnd: false,
   characters: [],
   dialogue: null,
   choicePrompt: null,
@@ -259,6 +265,7 @@ export class StoryRuntime {
             backgroundCueId: cue.id,
             backgroundInstanceId: previousState.backgroundInstanceId,
             backgroundTransitionMs: previousState.backgroundTransitionMs,
+            backgroundWaitForMediaEnd: previousState.backgroundWaitForMediaEnd,
           };
         } else {
           nextState = this.applyCue(nextState, {
@@ -399,13 +406,15 @@ export class StoryRuntime {
 
       const blockingDurationMs =
         cue.type === "background.set"
-          ? (cue.transitionMs ?? 0)
+          ? cue.waitForMediaEnd
+            ? Math.max(1, cue.transitionMs ?? 0)
+            : (cue.transitionMs ?? 0)
           : cue.type === "wait" && !cue.waitForAdvance
             ? (cue.durationMs ?? 0)
             : cue.type === "character.enter"
               ? (cue.enterDurationMs ?? 420)
               : 0;
-      if (blockingDurationMs > 0) {
+      if (blockingDurationMs > 0 || (cue.type === "background.set" && cue.waitForMediaEnd)) {
         this.commit({ ...nextState, status: "playing" });
         const instanceId =
           cue.type === "background.set"
@@ -529,6 +538,7 @@ export class StoryRuntime {
           backgroundCueId: cue.id,
           backgroundInstanceId: this.backgroundSequence,
           backgroundTransitionMs: cue.transitionMs ?? 0,
+          backgroundWaitForMediaEnd: cue.waitForMediaEnd ?? looksLikeVideoAsset(cue.assetRef),
         });
       case "character.enter": {
         this.characterEntrySequence += 1;

@@ -12,12 +12,12 @@ export const defaultStageSettings: StageSettings = {
   aspect: "16:9",
   width: 1920,
   height: 1080,
-  backgroundFit: "contain",
+  backgroundFit: "cover",
 };
 
 export const backgroundFitOptions: Array<{ value: BackgroundFit; label: string }> = [
+  { value: "cover", label: "铺满画面 · 居中裁剪" },
   { value: "contain", label: "完整显示 · 不裁切" },
-  { value: "cover", label: "铺满画面 · 可能裁切" },
   { value: "fill", label: "拉伸填满" },
 ];
 
@@ -65,7 +65,7 @@ export function stageCssVars(settings?: Partial<StageSettings> | null): CSSPrope
   return {
     "--stage-w": String(stage.width),
     "--stage-h": String(stage.height),
-    "--bg-fit": stage.backgroundFit ?? "contain",
+    "--bg-fit": stage.backgroundFit ?? "cover",
   } as CSSProperties;
 }
 

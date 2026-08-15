@@ -17,6 +17,7 @@ import type { BackgroundFit } from "../project-schema/types";
 import type { DialogueRegionStyle } from "../project-schema/types";
 import { findScene, getAllScenes, resolveDialogueHoldMs } from "../project-schema/types";
 import { StoryStage } from "../player/StoryStage";
+import { useAutoAdvance } from "../runtime/useAutoAdvance";
 import { useStoryRuntime } from "../runtime/useStoryRuntime";
 import { useEditorStore } from "../state/editorStore";
 import { transitionPresets } from "../transitions/presets";
@@ -71,47 +72,11 @@ export function EditorApp() {
     activeScene.id,
     selectedCue?.id,
   );
-  const holdTimerRef = useRef<number | null>(null);
   const customFont = project.dialogueFontRef ? getUserAsset(project.dialogueFontRef) : null;
   const stage = normalizeStageSettings(project.stage);
   const dialogueBox = normalizeDialogueBox(project.dialogueBox);
+  const autoAdvance = useAutoAdvance(project, playback, runtime, isLivePlayback());
   useDialogueFont(project.dialogueFontRef);
-
-  useEffect(() => {
-    if (holdTimerRef.current !== null) {
-      window.clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    if (!isLivePlayback() || playback.status !== "waiting_user" || playback.choices.length > 0) {
-      return;
-    }
-    const dialogueCue = activeScene.cues.find(
-      (cue) => cue.id === playback.dialogue?.cueId && cue.type === "dialogue.show",
-    );
-    if (!dialogueCue || dialogueCue.type !== "dialogue.show") {
-      return;
-    }
-    holdTimerRef.current = window.setTimeout(
-      () => {
-        holdTimerRef.current = null;
-        runtime.advance();
-      },
-      resolveDialogueHoldMs(dialogueCue, activeScene),
-    );
-    return () => {
-      if (holdTimerRef.current !== null) {
-        window.clearTimeout(holdTimerRef.current);
-        holdTimerRef.current = null;
-      }
-    };
-  }, [
-    activeScene,
-    isLivePlayback,
-    playback.choices.length,
-    playback.dialogue?.cueId,
-    playback.status,
-    runtime,
-  ]);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -551,7 +516,7 @@ export function EditorApp() {
                         backgroundFit: event.currentTarget.value as BackgroundFit,
                       })
                     }
-                    value={stage.backgroundFit ?? "contain"}
+                    value={stage.backgroundFit ?? "cover"}
                   >
                     {backgroundFitOptions.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -610,6 +575,9 @@ export function EditorApp() {
               onBackgroundTransitionComplete={runtime.notifyBackgroundTransitionCompleted}
               onCharacterEnterComplete={runtime.notifyCharacterEnterCompleted}
               onChoose={(optionId) => runtime.choose(optionId)}
+              onDialogueComplete={() => autoAdvance.markTextComplete()}
+              onVoiceEnded={autoAdvance.markVoiceEnded}
+              onBackgroundVideoEnded={autoAdvance.markBackgroundVideoEnded}
               onTransitionComplete={runtime.notifyTransitionCompleted}
               onTransitionCover={runtime.notifyTransitionCovered}
               playback={playback}

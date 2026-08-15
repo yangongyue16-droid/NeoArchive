@@ -8,7 +8,7 @@ export const sampleProject: StoryProject = {
   createdAt: "2026-08-13T00:00:00Z",
   updatedAt: "2026-08-13T00:00:00Z",
   dialogueFontRef: "font/blueaka",
-  stage: { aspect: "16:9", width: 1920, height: 1080, backgroundFit: "contain" },
+  stage: { aspect: "16:9", width: 1920, height: 1080, backgroundFit: "cover" },
   dialogueBox: {
     heightPercent: 51,
     speaker: { fontSize: 48, x: 9.7, y: 41.68 },
