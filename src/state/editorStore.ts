@@ -47,6 +47,7 @@ export type EditableCuePatch = Partial<{
   typingCps: number;
   voiceAssetRef?: string;
   voiceStartMs?: number;
+  voiceEndMs?: number;
   holdAfterMs?: number;
   voiceHoldMs?: number;
   advanceWhen?: import("../project-schema/types").AdvanceWhen;
@@ -90,7 +91,9 @@ type EditorState = {
   loadProject: (project: StoryProject) => void;
   markSaved: () => void;
   setDialogueHoldMs: (dialogueHoldMs?: number) => void;
+  setDialogueVoiceHoldMs: (voiceHoldMs?: number) => void;
   setDialogueTypingCps: (dialogueTypingCps?: number) => void;
+  setOpeningFadeMs: (openingFadeMs?: number) => void;
   setDialogueFont: (dialogueFontRef?: string) => void;
   setStageSettings: (stage: Partial<StageSettings>) => void;
   setDialogueBox: (
@@ -404,6 +407,9 @@ export const useEditorStore = create<EditorState>((set) => ({
         if ("voiceStartMs" in patch && patch.voiceStartMs === undefined) {
           delete cue.voiceStartMs;
         }
+        if ("voiceEndMs" in patch && patch.voiceEndMs === undefined) {
+          delete cue.voiceEndMs;
+        }
         if ("holdAfterMs" in patch && patch.holdAfterMs === undefined) {
           delete cue.holdAfterMs;
         }
@@ -515,6 +521,26 @@ export const useEditorStore = create<EditorState>((set) => ({
         state,
         { ...state.project, dialogueTypingCps: next },
         "project:dialogueTypingCps",
+      );
+    }),
+  setDialogueVoiceHoldMs: (voiceHoldMs) =>
+    set((state) => {
+      const next = voiceHoldMs === undefined ? undefined : Math.max(0, voiceHoldMs);
+      if (state.project.voiceHoldMs === next) {
+        return state;
+      }
+      return commitProject(state, { ...state.project, voiceHoldMs: next }, "project:voiceHoldMs");
+    }),
+  setOpeningFadeMs: (openingFadeMs) =>
+    set((state) => {
+      const next = openingFadeMs === undefined ? undefined : Math.max(0, openingFadeMs);
+      if (state.project.openingFadeMs === next) {
+        return state;
+      }
+      return commitProject(
+        state,
+        { ...state.project, openingFadeMs: next },
+        "project:openingFadeMs",
       );
     }),
   setStageSettings: (stage) =>

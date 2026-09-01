@@ -8,7 +8,7 @@ type VoiceCuePanelProps = {
   expanded: boolean;
   selected: boolean;
   onToggle: () => void;
-  onChange: (patch: { voiceAssetRef?: string; voiceStartMs?: number }) => void;
+  onChange: (patch: { voiceAssetRef?: string; voiceStartMs?: number; voiceEndMs?: number }) => void;
 };
 
 type Transport = "idle" | "playing" | "paused";
@@ -69,14 +69,18 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
   const asset = cue.voiceAssetRef ? getUserAsset(cue.voiceAssetRef) : null;
   const source = cue.voiceAssetRef ? resolveAudio(cue.voiceAssetRef) : null;
   const startMs = cue.voiceStartMs ?? 0;
+  const endMs = cue.voiceEndMs ?? durationMs;
+  const hasCutEnd = cue.voiceEndMs !== undefined;
   const windowRange = visibleWindow(focusMs, durationMs);
   const spanMs = Math.max(durationMs, 1);
   const startPct = (startMs / spanMs) * 100;
+  const endPct = (endMs / spanMs) * 100;
   const playheadPct = (playheadMs / spanMs) * 100;
   const windowLeftPct = (windowRange.start / spanMs) * 100;
   const windowWidthPct = ((windowRange.end - windowRange.start) / spanMs) * 100;
   const detailSpan = Math.max(windowRange.end - windowRange.start, 1);
   const detailStartPct = ((startMs - windowRange.start) / detailSpan) * 100;
+  const detailEndPct = ((endMs - windowRange.start) / detailSpan) * 100;
   const detailPlayheadPct = ((playheadMs - windowRange.start) / detailSpan) * 100;
 
   const setTransportState = (next: Transport) => {
@@ -106,7 +110,8 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
     ) => {
       const peaks = peaksRef.current;
       const range = visibleWindow(nextFocusMs, durationMs);
-      drawOverviewWaveform(overviewRef.current, peaks, nextStartMs, durationMs);
+      const endPointMs = cue.voiceEndMs ?? null;
+      drawOverviewWaveform(overviewRef.current, peaks, nextStartMs, durationMs, endPointMs);
       drawDetailWaveform(
         detailRef.current,
         peaks,
@@ -114,9 +119,10 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
         range.end,
         nextStartMs,
         nextPlayheadMs,
+        endPointMs,
       );
     },
-    [durationMs, startMs],
+    [cue.voiceEndMs, durationMs, startMs],
   );
 
   useEffect(() => {
@@ -150,7 +156,14 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
         setFocusMs(initialFocus);
         playheadRef.current = initialFocus;
         setPlayheadMs(initialFocus);
-        drawOverviewWaveform(overviewRef.current, peaks, cue.voiceStartMs ?? 0, nextDuration);
+        const endPointMs = cue.voiceEndMs ?? null;
+        drawOverviewWaveform(
+          overviewRef.current,
+          peaks,
+          cue.voiceStartMs ?? 0,
+          nextDuration,
+          endPointMs,
+        );
         const range = visibleWindow(initialFocus, nextDuration);
         drawDetailWaveform(
           detailRef.current,
@@ -159,6 +172,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
           range.end,
           cue.voiceStartMs ?? 0,
           initialFocus,
+          endPointMs,
         );
         setError(null);
       } catch {
@@ -314,23 +328,138 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
     seekPlayhead(next);
   };
 
+  // 波形空白区域：只认「按住拖动」，单击不改变任何值。
+  const detailDragRef = useRef<{ moved: boolean; downX: number } | null>(null);
+
   const onDetailPointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (!cue.voiceAssetRef || durationMs <= 0) {
       return;
     }
     event.currentTarget.setPointerCapture(event.pointerId);
-    const next = clampMs(timeFromDetailX(event.clientX), durationMs);
-    seekPlayhead(next);
-    onChange({ voiceStartMs: next });
+    detailDragRef.current = { moved: false, downX: event.clientX };
   };
 
   const onDetailPointerMove = (event: PointerEvent<HTMLDivElement>) => {
     if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
       return;
     }
+    const drag = detailDragRef.current;
+    if (!drag) {
+      return;
+    }
+    if (!drag.moved && Math.abs(event.clientX - drag.downX) < 6) {
+      return;
+    }
+    drag.moved = true;
     const next = clampMs(timeFromDetailX(event.clientX), durationMs);
     seekPlayhead(next);
     onChange({ voiceStartMs: next });
+  };
+
+  const onDetailPointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    detailDragRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  // 拖终点：终点自由设置；若拖到起点之前，起点自动跟到同一点（后者说了算）。
+  const updateEndFromX = (clientX: number) => {
+    const value = clampMs(timeFromDetailX(clientX), durationMs);
+    const patch: { voiceEndMs: number; voiceStartMs?: number } = { voiceEndMs: value };
+    if (value < startMs) {
+      patch.voiceStartMs = value;
+    }
+    onChange(patch);
+  };
+
+  // 拖起点：起点自由设置；若超过现有终点，终点自动跟到同一点。
+  const updateStartFromX = (clientX: number) => {
+    const value = clampMs(timeFromDetailX(clientX), durationMs);
+    const patch: { voiceStartMs: number; voiceEndMs?: number } = { voiceStartMs: value };
+    if (hasCutEnd && value > endMs) {
+      patch.voiceEndMs = value;
+    }
+    onChange(patch);
+    seekPlayhead(value);
+  };
+
+  const onStartPointPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
+    if (!cue.voiceAssetRef || durationMs <= 0) {
+      return;
+    }
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragKindRef.current = "start";
+    dragMovedRef.current = false;
+    dragDownXRef.current = event.clientX;
+  };
+
+  const onStartPointPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+      return;
+    }
+    event.stopPropagation();
+    if (!dragMovedRef.current && Math.abs(event.clientX - dragDownXRef.current) < 4) {
+      return;
+    }
+    dragMovedRef.current = true;
+    updateStartFromX(event.clientX);
+  };
+
+  // 只有真正拖动了才改变值：按下只做准备，移动超过阈值才算拖动。
+  const dragKindRef = useRef<"start" | "end" | null>(null);
+  const dragMovedRef = useRef(false);
+  const dragDownXRef = useRef(0);
+
+  const onEndPointPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
+    if (!cue.voiceAssetRef || durationMs <= 0) {
+      return;
+    }
+    // 阻止冒泡：外面的细分区「点击=设起点」不得抢走把手的事件捕获。
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragKindRef.current = "end";
+    dragMovedRef.current = false;
+    dragDownXRef.current = event.clientX;
+  };
+
+  const onEndPointPointerMove = (event: PointerEvent<HTMLSpanElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) {
+      return;
+    }
+    event.stopPropagation();
+    if (!dragMovedRef.current && Math.abs(event.clientX - dragDownXRef.current) < 4) {
+      return;
+    }
+    dragMovedRef.current = true;
+    updateEndFromX(event.clientX);
+  };
+
+  const onEndPointPointerUp = (event: PointerEvent<HTMLSpanElement>) => {
+    event.stopPropagation();
+    const wasDragged = dragMovedRef.current;
+    dragKindRef.current = null;
+    if (wasDragged) {
+      const value = clampMs(timeFromDetailX(event.clientX), durationMs);
+      // 拖到最右（音频末尾）松手 = 复位终点，回到「播到全长」。
+      if (value >= durationMs - 40) {
+        onChange({ voiceEndMs: undefined });
+      }
+    }
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
+  const onStartPointPointerUp = (event: PointerEvent<HTMLSpanElement>) => {
+    event.stopPropagation();
+    const wasDragged = dragMovedRef.current;
+    dragKindRef.current = null;
+    if (wasDragged) {
+      const value = clampMs(timeFromDetailX(event.clientX), durationMs);
+      // 拖到最左（0）松手 = 复位起点。
+      if (value <= 40) {
+        onChange({ voiceStartMs: 0 });
+      }
+    }
+    event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   if (!expanded) {
@@ -366,7 +495,11 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
               onClick={() => {
                 disposeAudio();
                 setTransportState("idle");
-                onChange({ voiceAssetRef: undefined, voiceStartMs: undefined });
+                onChange({
+                  voiceAssetRef: undefined,
+                  voiceStartMs: undefined,
+                  voiceEndMs: undefined,
+                });
                 setDurationMs(0);
                 peaksRef.current = null;
               }}
@@ -424,6 +557,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
                 style={{ left: `${windowLeftPct}%`, width: `${windowWidthPct}%` }}
               />
               <span className="voice-waveform-origin" style={{ left: `${startPct}%` }} />
+              <span className="voice-waveform-endspan" style={{ left: `${endPct}%` }} />
               <span className="voice-waveform-playhead" style={{ left: `${playheadPct}%` }} />
             </>
           ) : null}
@@ -431,13 +565,16 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
       </div>
       <div className="voice-lane">
         <span>
-          细分 · 成片起点 {formatTime(startMs)} · 窗口 {formatTime(windowRange.start)}–
-          {formatTime(windowRange.end)}
+          细分 · 成片起点 {formatTime(startMs)} · 成片终点{" "}
+          {formatTime(hasCutEnd ? endMs : durationMs)}
+          {" · "}窗口 {formatTime(windowRange.start)}–{formatTime(windowRange.end)}
         </span>
         <div
           className="voice-waveform-wrap is-detail"
           onPointerDown={onDetailPointerDown}
           onPointerMove={onDetailPointerMove}
+          onPointerUp={onDetailPointerUp}
+          onPointerCancel={onDetailPointerUp}
           ref={detailWrapRef}
         >
           <canvas
@@ -449,8 +586,18 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
           {cue.voiceAssetRef ? (
             <>
               <span
-                className="voice-waveform-origin"
+                className="voice-waveform-originpoint"
+                onPointerDown={onStartPointPointerDown}
+                onPointerMove={onStartPointPointerMove}
+                onPointerUp={onStartPointPointerUp}
                 style={{ left: `${clampPct(detailStartPct)}%` }}
+              />
+              <span
+                className="voice-waveform-endpoint"
+                onPointerDown={onEndPointPointerDown}
+                onPointerMove={onEndPointPointerMove}
+                onPointerUp={onEndPointPointerUp}
+                style={{ left: `${clampPct(detailEndPct)}%` }}
               />
               <span
                 className="voice-waveform-playhead"
@@ -474,6 +621,14 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
           >
             复位起点
           </button>
+          <button onClick={() => onChange({ voiceEndMs: playheadMs })} type="button">
+            设为成片终点
+          </button>
+          {hasCutEnd ? (
+            <button onClick={() => onChange({ voiceEndMs: undefined })} type="button">
+              复位终点
+            </button>
+          ) : null}
         </div>
       ) : null}
       {error ? <p className="voice-error">{error}</p> : null}
@@ -550,6 +705,7 @@ function fillWave(
   endMs: number,
   inPointMs: number,
   playheadMs: number | null,
+  endPointMs: number | null,
 ): void {
   const width = context.canvas.width;
   const height = context.canvas.height;
@@ -560,11 +716,14 @@ function fillWave(
     const amplitude = Math.max(2, peakAt(peaks, timeMs, durationMs) * (height * 0.86));
     const beforeIn = timeMs < inPointMs;
     const beforePlay = playheadMs !== null && timeMs < playheadMs;
+    const afterCut = endPointMs !== null && timeMs > endPointMs;
     context.fillStyle = beforeIn
       ? "rgba(125, 212, 239, 0.2)"
-      : beforePlay
-        ? "rgba(125, 212, 239, 0.95)"
-        : "rgba(125, 212, 239, 0.72)";
+      : afterCut
+        ? "rgba(125, 212, 239, 0.14)"
+        : beforePlay
+          ? "rgba(125, 212, 239, 0.95)"
+          : "rgba(125, 212, 239, 0.72)";
     context.fillRect(x, mid - amplitude / 2, 1, amplitude);
   }
 }
@@ -574,6 +733,7 @@ function drawOverviewWaveform(
   peaks: Float32Array | null,
   startMs: number,
   durationMs: number,
+  endPointMs: number | null,
 ): void {
   if (!canvas || !peaks) {
     return;
@@ -585,7 +745,7 @@ function drawOverviewWaveform(
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "rgba(78, 183, 216, 0.12)";
   context.fillRect(0, 0, canvas.width, canvas.height);
-  fillWave(context, peaks, durationMs, 0, durationMs, startMs, null);
+  fillWave(context, peaks, durationMs, 0, durationMs, startMs, null, endPointMs);
 }
 
 function drawDetailWaveform(
@@ -595,6 +755,7 @@ function drawDetailWaveform(
   endMs: number,
   inPointMs: number,
   playheadMs: number,
+  endPointMs: number | null,
 ): void {
   if (!canvas || !peaks) {
     return;
@@ -607,5 +768,5 @@ function drawDetailWaveform(
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "rgba(78, 183, 216, 0.12)";
   context.fillRect(0, 0, canvas.width, canvas.height);
-  fillWave(context, peaks, durationMs, startMs, endMs, inPointMs, playheadMs);
+  fillWave(context, peaks, durationMs, startMs, endMs, inPointMs, playheadMs, endPointMs);
 }

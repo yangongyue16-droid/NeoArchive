@@ -30,8 +30,9 @@ describe("dialogue hold", () => {
     expect(resolveDialogueHoldMs({ text: "你好世界" })).toBe(2000);
   });
 
-  it("resolves the voice hold, defaulting to 500ms and supporting 0", () => {
-    expect(resolveVoiceHoldMs({})).toBe(500);
+  it("resolves the voice hold, defaulting to 1000ms and supporting 0", () => {
+    expect(resolveVoiceHoldMs({})).toBe(1000);
+    expect(resolveVoiceHoldMs({}, { voiceHoldMs: 2000 })).toBe(2000);
     expect(resolveVoiceHoldMs({ voiceHoldMs: 0 })).toBe(0);
     expect(resolveVoiceHoldMs({ voiceHoldMs: 1200 })).toBe(1200);
   });

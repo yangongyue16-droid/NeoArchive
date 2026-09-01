@@ -71,7 +71,7 @@ export function useAutoAdvance(
       return;
     }
     const holdMs = dialogueCue.voiceAssetRef
-      ? resolveVoiceHoldMs(dialogueCue)
+      ? resolveVoiceHoldMs(dialogueCue, project)
       : resolveDialogueHoldMs(dialogueCue, scene, project);
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null;

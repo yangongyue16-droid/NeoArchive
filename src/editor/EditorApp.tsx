@@ -241,7 +241,9 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
   const loadProject = useEditorStore((state) => state.loadProject);
   const setDialogueFont = useEditorStore((state) => state.setDialogueFont);
   const setDialogueHoldMs = useEditorStore((state) => state.setDialogueHoldMs);
+  const setDialogueVoiceHoldMs = useEditorStore((state) => state.setDialogueVoiceHoldMs);
   const setDialogueTypingCps = useEditorStore((state) => state.setDialogueTypingCps);
+  const setOpeningFadeMs = useEditorStore((state) => state.setOpeningFadeMs);
   const setStageSettings = useEditorStore((state) => state.setStageSettings);
   const setDialogueBox = useEditorStore((state) => state.setDialogueBox);
   const applyDialogueToAll = useEditorStore((state) => state.applyDialogueToAll);
@@ -680,6 +682,32 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                 value={project.dialogueHoldMs === undefined ? null : project.dialogueHoldMs / 1000}
               />
               <small>无配音句子播完停这么久；单句可在幕前单独覆盖。</small>
+            </label>
+            <label>
+              <span>配音播完停留（秒）</span>
+              <DeferredNumberInput
+                allowEmpty
+                min={0}
+                onCommit={(v) =>
+                  setDialogueVoiceHoldMs(v === null ? undefined : Math.round(v * 1000))
+                }
+                placeholder="1"
+                step={0.25}
+                value={project.voiceHoldMs === undefined ? null : project.voiceHoldMs / 1000}
+              />
+              <small>有配音句子播完后停这么久；留空默认 1 秒，单句可在幕前覆盖。</small>
+            </label>
+            <label>
+              <span>开场画面淡入（秒）</span>
+              <DeferredNumberInput
+                allowEmpty
+                min={0}
+                onCommit={(v) => setOpeningFadeMs(v === null ? undefined : Math.round(v * 1000))}
+                placeholder="1.2"
+                step={0.1}
+                value={project.openingFadeMs === undefined ? null : project.openingFadeMs / 1000}
+              />
+              <small>播放成品第一次出现画面时淡入这么久；留空默认 1.2 秒，填 0 关闭。</small>
             </label>
             <div className="settings-section">
               <strong>对话框排版</strong>
@@ -1276,6 +1304,7 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                   updateCue(activeScene.id, selectedCue.id, patch, field);
                 }
               }}
+              voiceHoldDefaultMs={project.voiceHoldMs ?? 1000}
             />
           )}
         </aside>

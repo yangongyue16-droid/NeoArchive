@@ -80,6 +80,7 @@ class DialogueShowCue(BaseCue):
     wait_for_advance: bool = True
     voice_asset_ref: str | None = None
     voice_start_ms: int | None = Field(default=None, ge=0)
+    voice_end_ms: int | None = Field(default=None, ge=0)
     hold_after_ms: int | None = Field(default=None, ge=0)
     voice_hold_ms: int | None = Field(default=None, ge=0)
     advance_when: AdvanceWhen | None = None
@@ -225,6 +226,8 @@ class StoryProject(SchemaModel):
     updated_at: datetime
     dialogue_font_ref: str | None = None
     dialogue_hold_ms: int | None = Field(default=None, ge=0)
+    voice_hold_ms: int | None = Field(default=None, ge=0)
+    opening_fade_ms: int | None = Field(default=None, ge=0)
     dialogue_typing_cps: int | None = Field(default=None, ge=1)
     stage: StageSettings | None = None
     dialogue_box: DialogueBoxSettings | None = None

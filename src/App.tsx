@@ -12,6 +12,7 @@ export function isPlayerRoute(): boolean {
 export function App() {
   const [player, setPlayer] = useState(isPlayerRoute);
   const [enteredEditor, setEnteredEditor] = useState(false);
+  const [cameFromEditor, setCameFromEditor] = useState(false);
   useEffect(() => {
     const sync = () => setPlayer(isPlayerRoute());
     window.addEventListener("hashchange", sync);
@@ -25,7 +26,22 @@ export function App() {
     return <PlayerApp />;
   }
   if (!enteredEditor) {
-    return <HomeScreen onOpened={() => setEnteredEditor(true)} />;
+    return (
+      <HomeScreen
+        animateFromEditor={cameFromEditor}
+        onOpened={() => {
+          setCameFromEditor(false);
+          setEnteredEditor(true);
+        }}
+      />
+    );
   }
-  return <EditorApp onBackHome={() => setEnteredEditor(false)} />;
+  return (
+    <EditorApp
+      onBackHome={() => {
+        setCameFromEditor(true);
+        setEnteredEditor(false);
+      }}
+    />
+  );
 }

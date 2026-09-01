@@ -2,6 +2,7 @@ import {
   findScene,
   getAllScenes,
   resolveDialogueTypingCps,
+  resolveOpeningFadeMs,
   type CharacterTransform,
   type Scene,
   type StoryCue,
@@ -33,6 +34,7 @@ export type RuntimeAudio = {
   loop: boolean;
   volume: number;
   startMs?: number;
+  endMs?: number;
   cueId?: string;
 };
 
@@ -113,6 +115,8 @@ export class StoryRuntime {
   private transitionSequence = 0;
   private backgroundSequence = 0;
   private characterEntrySequence = 0;
+  /** 从头开始播放时，第一张背景用更缓的开场淡入（下一次 background.set 消费）。 */
+  private pendingOpeningFade = false;
   private cueTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingStageAnimation: {
     kind: "background" | "character";
@@ -234,6 +238,7 @@ export class StoryRuntime {
   start(sceneId = this.project.entrySceneId): void {
     this.clearSceneTransitionTimer();
     this.sceneVisitCount = 0;
+    this.pendingOpeningFade = true;
     const scene = findScene(this.project, sceneId);
     if (scene?.entryTransition && scene.entryTransition.preset !== "none") {
       this.transitionSequence += 1;
@@ -621,16 +626,23 @@ export class StoryRuntime {
 
   private applyCue(state: PlaybackState, cue: StoryCue): PlaybackState {
     switch (cue.type) {
-      case "background.set":
+      case "background.set": {
         this.backgroundSequence += 1;
+        const openingFadeMs = this.pendingOpeningFade ? resolveOpeningFadeMs(this.project) : 0;
+        this.pendingOpeningFade = false;
+        const transitionMs =
+          openingFadeMs > 0
+            ? Math.max(cue.transitionMs ?? 0, openingFadeMs)
+            : (cue.transitionMs ?? 0);
         return withoutDialogueVoice({
           ...state,
           backgroundRef: cue.assetRef,
           backgroundCueId: cue.id,
           backgroundInstanceId: this.backgroundSequence,
-          backgroundTransitionMs: cue.transitionMs ?? 0,
+          backgroundTransitionMs: transitionMs,
           backgroundWaitForMediaEnd: cue.waitForMediaEnd ?? looksLikeVideoAsset(cue.assetRef),
         });
+      }
       case "character.enter": {
         this.characterEntrySequence += 1;
         const otherCharacters = state.characters.filter(
@@ -695,6 +707,7 @@ export class StoryRuntime {
               loop: false,
               volume: 1,
               startMs: cue.voiceStartMs ?? 0,
+              endMs: cue.voiceEndMs,
               cueId: cue.id,
             },
           },

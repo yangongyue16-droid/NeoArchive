@@ -44,6 +44,36 @@ describe("StoryRuntime", () => {
     expect(runtime.getSnapshot().characters).toHaveLength(1);
   });
 
+  it("fades in the opening background slowly and keeps later switches on cue values", () => {
+    const runtime = new StoryRuntime(sampleProject);
+
+    runtime.start();
+    completeStageActions(runtime);
+    expect(runtime.getSnapshot().backgroundTransitionMs).toBe(1200);
+
+    runtime.advance();
+    completeStageActions(runtime);
+    runtime.advance();
+    completeStageActions(runtime);
+
+    expect(runtime.getSnapshot()).toMatchObject({
+      sceneId: "scene-002",
+      backgroundRef: "background/rooftop",
+    });
+    expect(runtime.getSnapshot().backgroundTransitionMs).toBe(500);
+  });
+
+  it("does not fade the opening background when openingFadeMs is 0", () => {
+    const project = structuredClone(sampleProject);
+    project.openingFadeMs = 0;
+
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+    completeStageActions(runtime);
+
+    expect(runtime.getSnapshot().backgroundTransitionMs).toBe(400);
+  });
+
   it("uses vertical cue order instead of legacy millisecond values", () => {
     const project = structuredClone(sampleProject);
     const firstScene = project.chapters[0]?.scenes[0];

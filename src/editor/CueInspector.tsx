@@ -9,6 +9,8 @@ import { LocalAssetPicker } from "./LocalAssetPicker";
 type CueInspectorProps = {
   cue: StoryCue | null;
   onUpdate: (patch: EditableCuePatch, field: string) => void;
+  /** 当前工程生效的「配音播完停留」默认（毫秒），用于占位提示。 */
+  voiceHoldDefaultMs?: number;
 };
 
 type PlacementControlProps = {
@@ -162,7 +164,7 @@ function CharacterPlacement({
   );
 }
 
-export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
+export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspectorProps) {
   useSyncExternalStore(subscribeUserAssets, getUserAssetSnapshot, () => 0);
   if (!cue) {
     return <p className="empty-inspector">选择一条剧本行后在这里编辑。</p>;
@@ -276,12 +278,15 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
                   }
                   onUpdate({ voiceHoldMs: Math.max(0, Math.round(seconds * 1000)) }, "voiceHoldMs");
                 }}
-                placeholder="0.5（默认）"
+                placeholder={String(Math.round(voiceHoldDefaultMs ?? 1000) / 1000)}
                 step={0.25}
                 type="number"
                 value={cue.voiceHoldMs === undefined ? "" : cue.voiceHoldMs / 1000}
               />
-              <small>配音播完后再停这么久。填 0 = 配音播完立即切下一句。</small>
+              <small>
+                留空跟随全局默认 {Math.round(voiceHoldDefaultMs ?? 1000) / 1000} 秒；填 0 =
+                配音播完立即切下一句。
+              </small>
             </label>
           ) : null}
           <fieldset className="advance-when">

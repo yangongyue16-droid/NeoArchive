@@ -60,12 +60,26 @@ function StoryAudio({
   return source ? (
     <audio
       autoPlay
-      key={`${audio.channel}:${audio.cueId ?? ""}:${audio.assetRef}:${audio.startMs ?? 0}`}
+      key={`${audio.channel}:${audio.cueId ?? ""}:${audio.assetRef}:${audio.startMs ?? 0}:${audio.endMs ?? 0}`}
       loop={audio.loop}
       onEnded={() => onEnded?.(audio.cueId)}
       onLoadedMetadata={(event) => {
         if ((audio.startMs ?? 0) > 0) {
           event.currentTarget.currentTime = audio.startMs! / 1000;
+        }
+      }}
+      onTimeUpdate={(event) => {
+        const element = event.currentTarget;
+        const durationMs = element.duration * 1000;
+        if (
+          !audio.loop &&
+          durationMs > 0 &&
+          audio.endMs !== undefined &&
+          audio.endMs < durationMs - 50 &&
+          element.currentTime * 1000 >= audio.endMs
+        ) {
+          element.pause();
+          onEnded?.(audio.cueId);
         }
       }}
       src={source}
@@ -199,34 +213,38 @@ export function StoryStage({
   useSyncExternalStore(subscribeUserAssets, getUserAssetSnapshot, () => 0);
   const background = resolveBackgroundMedia(playback.backgroundRef);
   const dialogue = playback.dialogue;
-  const [visibleCharacters, setVisibleCharacters] = useState(() =>
-    instantText ? (dialogue?.text.length ?? 0) : 0,
-  );
+  // 打字进度与句子绑定：对话框 cue 变化时，渲染期即按 0 处理，
+  // 避免旧句字数残影造成前后两句瞬间重合/闪现。
+  const [typed, setTyped] = useState<{ cueId: string; count: number } | null>(null);
   const stageRef = useRef<HTMLElement>(null);
   const [stageScale, setStageScale] = useState(1);
   const completionNotifiedRef = useRef<string | null>(null);
   const dialogueKey = dialogue ? `${dialogue.cueId}:${dialogue.text}` : null;
-  const textComplete = !dialogue || instantText || visibleCharacters >= dialogue.text.length;
+  const typedCount = typed && dialogue && typed.cueId === dialogue.cueId ? typed.count : 0;
+  const textComplete = !dialogue || instantText || typedCount >= dialogue.text.length;
 
   useEffect(() => {
     completionNotifiedRef.current = null;
     if (!dialogue) {
-      setVisibleCharacters(0);
+      setTyped(null);
       return;
     }
     if (instantText) {
-      setVisibleCharacters(dialogue.text.length);
+      setTyped({ cueId: dialogue.cueId, count: dialogue.text.length });
       return;
     }
-    setVisibleCharacters(0);
+    setTyped({ cueId: dialogue.cueId, count: 0 });
     const intervalMs = Math.max(12, Math.round(1000 / dialogue.typingCps));
     const timer = window.setInterval(() => {
-      setVisibleCharacters((current) => {
-        if (current >= dialogue.text.length) {
+      setTyped((current) => {
+        if (!current || current.cueId !== dialogue.cueId) {
+          return current;
+        }
+        if (current.count >= dialogue.text.length) {
           window.clearInterval(timer);
           return current;
         }
-        return current + 1;
+        return { cueId: dialogue.cueId, count: current.count + 1 };
       });
     }, intervalMs);
     return () => window.clearInterval(timer);
@@ -272,7 +290,7 @@ export function StoryStage({
           return;
         }
         if (dialogue && !textComplete) {
-          setVisibleCharacters(dialogue.text.length);
+          setTyped({ cueId: dialogue.cueId, count: dialogue.text.length });
           return;
         }
         onAdvance?.();
@@ -342,9 +360,7 @@ export function StoryStage({
           speaker={dialogue?.speaker ?? "说话人"}
           subtitle={dialogue?.subtitle ?? "身份"}
           text={
-            dialogue
-              ? dialogue.text.slice(0, visibleCharacters)
-              : "在这里预览对话框高度、字号和位置。"
+            dialogue ? dialogue.text.slice(0, typedCount) : "在这里预览对话框高度、字号和位置。"
           }
         />
       ) : null}

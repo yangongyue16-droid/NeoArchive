@@ -59,6 +59,8 @@ export type DialogueShowCue = BaseCue & {
   advanceWhen?: AdvanceWhen;
   voiceAssetRef?: string;
   voiceStartMs?: number;
+  /** 配音播放到该时间点截断（剪掉结尾多余声音）；缺省播到音频全长。 */
+  voiceEndMs?: number;
 };
 
 export type AudioPlayCue = BaseCue & {
@@ -175,9 +177,25 @@ export function resolveDialogueTypingCps(project?: { dialogueTypingCps?: number 
   return value !== undefined ? Math.max(1, value) : 8;
 }
 
-/** 有配音句子：配音播完后再停留的毫秒数。0 = 播完即切；缺省 500。 */
-export function resolveVoiceHoldMs(cue: { voiceHoldMs?: number }): number {
-  return cue.voiceHoldMs !== undefined ? Math.max(0, cue.voiceHoldMs) : 500;
+/** 有配音句子：配音播完后再停留的毫秒数。0 = 播完即切；缺省 1000。
+ *  优先级：单句 voiceHoldMs > 工程全局 voiceHoldMs > 默认 1000。 */
+export function resolveVoiceHoldMs(
+  cue: { voiceHoldMs?: number },
+  project?: { voiceHoldMs?: number } | null,
+): number {
+  if (cue.voiceHoldMs !== undefined) {
+    return Math.max(0, cue.voiceHoldMs);
+  }
+  if (project?.voiceHoldMs !== undefined) {
+    return Math.max(0, project.voiceHoldMs);
+  }
+  return 1000;
+}
+
+/** 开场画面淡入（毫秒）：播放成品从头开始时第一张背景的缓入时长，
+ *  避免第一帧图片生硬闪现。缺省 1200；显式设为 0 则关闭（用 cue 自己的过渡）。 */
+export function resolveOpeningFadeMs(project?: { openingFadeMs?: number } | null): number {
+  return project?.openingFadeMs !== undefined ? Math.max(0, project.openingFadeMs) : 1200;
 }
 
 export function resolveAdvanceWhen(cue: {
@@ -248,6 +266,10 @@ export type StoryProject = {
   updatedAt: string;
   /** 全局默认停留（无配音句子播完停留的毫秒数），缺省 2000。单句可用 holdAfterMs 覆盖。 */
   dialogueHoldMs?: number;
+  /** 全局配音播完停留（有配音句子播完停留的毫秒数），缺省 1000。单句可用 voiceHoldMs 覆盖。 */
+  voiceHoldMs?: number;
+  /** 开场画面淡入（毫秒），缺省 1200；0 = 关闭开场缓入。 */
+  openingFadeMs?: number;
   /** 全局对白打字速度（字/秒），强制所有对白生效，缺省 8。 */
   dialogueTypingCps?: number;
   dialogueFontRef?: string;

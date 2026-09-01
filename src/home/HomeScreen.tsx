@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { resolveBackground } from "../assets/catalog";
 import { subscribeUserAssets } from "../assets/userAssets";
-import { parseProjectFile } from "../project-schema/projectFile";
+import { getActiveProjectId, parseProjectFile } from "../project-schema/projectFile";
 import {
   createNewProject,
   deleteProject,
@@ -18,6 +18,7 @@ import {
 } from "./homeBackground";
 
 type HomeScreenProps = {
+  animateFromEditor?: boolean;
   onOpened: () => void;
 };
 
@@ -42,7 +43,7 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-export function HomeScreen({ onOpened }: HomeScreenProps) {
+export function HomeScreen({ animateFromEditor = false, onOpened }: HomeScreenProps) {
   const loadProject = useEditorStore((state) => state.loadProject);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
@@ -67,8 +68,12 @@ export function HomeScreen({ onOpened }: HomeScreenProps) {
     height: number | string;
     borderRadius?: number;
     opacity: number;
-  } | null>(null);
-  const [overlayExpanded, setOverlayExpanded] = useState(false);
+  } | null>(() =>
+    animateFromEditor
+      ? { left: 0, top: 0, width: "100vw", height: "100vh", borderRadius: 0, opacity: 1 }
+      : null,
+  );
+  const [overlayExpanded, setOverlayExpanded] = useState(animateFromEditor);
 
   // 翻转进行约 260ms 后，白色层才出现在卡片位置。
   useEffect(() => {
@@ -109,6 +114,55 @@ export function HomeScreen({ onOpened }: HomeScreenProps) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [overlayStyle, overlayExpanded]);
+
+  // 从编辑器返回：白色全屏先不透明地收拢到当前工程卡片，
+  // 到位后再快速淡出，露出主页。
+  useEffect(() => {
+    if (!animateFromEditor) {
+      return;
+    }
+    const timers: number[] = [];
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        const activeId = getActiveProjectId();
+        const tile = activeId
+          ? document.querySelector<HTMLElement>(`.home-proj-tile[data-project-id="${activeId}"]`)
+          : null;
+        const rect = tile?.getBoundingClientRect();
+        if (rect) {
+          setOverlayStyle({
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+            borderRadius: 14,
+            opacity: 1,
+          });
+          timers.push(
+            window.setTimeout(() => {
+              setOverlayStyle({
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height,
+                borderRadius: 14,
+                opacity: 0,
+              });
+              timers.push(window.setTimeout(() => setOverlayStyle(null), 200));
+            }, 600),
+          );
+        } else {
+          timers.push(window.setTimeout(() => setOverlayStyle(null), 240));
+        }
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      for (const timer of timers) {
+        window.clearTimeout(timer);
+      }
+    };
+  }, [animateFromEditor]);
 
   // 本地素材（IndexedDB）在启动时异步加载，完成后触发重绘，让封面图能出现。
   useEffect(() => subscribeUserAssets(() => setAssetRevision((value) => value + 1)), []);
@@ -368,6 +422,7 @@ export function HomeScreen({ onOpened }: HomeScreenProps) {
                     className={`home-proj-tile ${index === 0 ? "is-hero" : ""} ${
                       openingId === meta.projectId ? "is-flipping" : ""
                     }`}
+                    data-project-id={meta.projectId}
                     key={meta.projectId}
                   >
                     <div className="home-proj-flipper">
