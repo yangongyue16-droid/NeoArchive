@@ -50,9 +50,12 @@ export type DialogueShowCue = BaseCue & {
   speaker: string;
   subtitle?: string;
   text: string;
-  typingCps: number;
+  /** 已废弃：全局打字速度见 StoryProject.dialogueTypingCps。 */
+  typingCps?: number;
   waitForAdvance: boolean;
   holdAfterMs?: number;
+  /** 有配音时，配音播完后再停留的毫秒数。0 = 播完即切；缺省用全局默认（500）。 */
+  voiceHoldMs?: number;
   advanceWhen?: AdvanceWhen;
   voiceAssetRef?: string;
   voiceStartMs?: number;
@@ -142,12 +145,17 @@ export type Scene = {
   autoAdvanceMs?: number;
   nextSceneId?: string;
   exitTransition?: SceneExitTransition;
+  /** 首幕入场过渡：播放开始（从入口进入）时先播放。 */
+  entryTransition?: SceneExitTransition;
+  /** 末幕收尾过渡：剧情播完后渐隐结束。 */
+  endingTransition?: SceneExitTransition;
   cues: StoryCue[];
 };
 
 export function resolveDialogueHoldMs(
   cue: { text: string; holdAfterMs?: number },
   scene?: { autoAdvanceMs?: number } | null,
+  project?: { dialogueHoldMs?: number } | null,
 ): number {
   if (cue.holdAfterMs !== undefined) {
     return Math.max(0, cue.holdAfterMs);
@@ -155,7 +163,21 @@ export function resolveDialogueHoldMs(
   if (scene?.autoAdvanceMs !== undefined) {
     return Math.max(0, scene.autoAdvanceMs);
   }
-  return Math.max(850, cue.text.length * 42);
+  if (project?.dialogueHoldMs !== undefined) {
+    return Math.max(0, project.dialogueHoldMs);
+  }
+  return 2000;
+}
+
+/** 全局对白打字速度（字/秒），强制所有对白生效，缺省 8。 */
+export function resolveDialogueTypingCps(project?: { dialogueTypingCps?: number } | null): number {
+  const value = project?.dialogueTypingCps;
+  return value !== undefined ? Math.max(1, value) : 8;
+}
+
+/** 有配音句子：配音播完后再停留的毫秒数。0 = 播完即切；缺省 500。 */
+export function resolveVoiceHoldMs(cue: { voiceHoldMs?: number }): number {
+  return cue.voiceHoldMs !== undefined ? Math.max(0, cue.voiceHoldMs) : 500;
 }
 
 export function resolveAdvanceWhen(cue: {
@@ -224,6 +246,10 @@ export type StoryProject = {
   entrySceneId: string;
   createdAt: string;
   updatedAt: string;
+  /** 全局默认停留（无配音句子播完停留的毫秒数），缺省 2000。单句可用 holdAfterMs 覆盖。 */
+  dialogueHoldMs?: number;
+  /** 全局对白打字速度（字/秒），强制所有对白生效，缺省 8。 */
+  dialogueTypingCps?: number;
   dialogueFontRef?: string;
   stage?: StageSettings;
   dialogueBox?: DialogueBoxSettings;
@@ -232,6 +258,18 @@ export type StoryProject = {
 
 export function getAllScenes(project: StoryProject): Scene[] {
   return project.chapters.flatMap((chapter) => chapter.scenes);
+}
+
+/** 工程内第一个非空背景图的 assetRef（用于工程卡片缩略图）；无则 null。 */
+export function firstBackgroundAssetRef(project: StoryProject): string | null {
+  for (const scene of getAllScenes(project)) {
+    for (const cue of scene.cues) {
+      if (cue.type === "background.set" && cue.assetRef !== "") {
+        return cue.assetRef;
+      }
+    }
+  }
+  return null;
 }
 
 export function findScene(project: StoryProject, sceneId: string): Scene | undefined {

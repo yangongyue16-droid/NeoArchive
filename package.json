@@ -13,7 +13,7 @@
     "build": "vp check && vp build",
     "build:web": "vp check && vp build",
     "build:sidecar": "node scripts/prepare-sidecar.mjs",
-    "build:desktop": "vp run build:sidecar && tauri build",
+    "build:desktop": "vp run build:sidecar && tauri build && node scripts/stage-release-internal.mjs",
     "preview": "vp preview",
     "test": "vp test",
     "test:api": "uv run --project backend pytest backend/tests",

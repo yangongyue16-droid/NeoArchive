@@ -41,6 +41,7 @@ class BackgroundSetCue(BaseCue):
     type: Literal["background.set"]
     asset_ref: str
     transition_ms: int | None = Field(default=None, ge=0)
+    wait_for_media_end: bool | None = None
 
 
 class CharacterEnterCue(BaseCue):
@@ -64,15 +65,24 @@ class CharacterExitCue(BaseCue):
     character_ref: str
 
 
+class AdvanceWhen(SchemaModel):
+    text: bool = True
+    voice: bool = False
+    background_video: bool = False
+
+
 class DialogueShowCue(BaseCue):
     type: Literal["dialogue.show"]
     speaker: str
     subtitle: str | None = None
     text: str
-    typing_cps: int = Field(default=36, gt=0)
+    typing_cps: int | None = Field(default=None, ge=0)
     wait_for_advance: bool = True
     voice_asset_ref: str | None = None
     voice_start_ms: int | None = Field(default=None, ge=0)
+    hold_after_ms: int | None = Field(default=None, ge=0)
+    voice_hold_ms: int | None = Field(default=None, ge=0)
+    advance_when: AdvanceWhen | None = None
 
 
 class AudioPlayCue(BaseCue):
@@ -168,6 +178,8 @@ class Scene(SchemaModel):
     auto_advance_ms: int | None = Field(default=None, ge=250)
     next_scene_id: str | None = None
     exit_transition: SceneExitTransition | None = None
+    entry_transition: SceneExitTransition | None = None
+    ending_transition: SceneExitTransition | None = None
     cues: list[StoryCue]
 
 
@@ -212,6 +224,8 @@ class StoryProject(SchemaModel):
     created_at: datetime
     updated_at: datetime
     dialogue_font_ref: str | None = None
+    dialogue_hold_ms: int | None = Field(default=None, ge=0)
+    dialogue_typing_cps: int | None = Field(default=None, ge=1)
     stage: StageSettings | None = None
     dialogue_box: DialogueBoxSettings | None = None
     chapters: list[Chapter]

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 import { parseProjectFile, serializeProject } from "./projectFile";
 import { sampleProject } from "./sampleProject";
-import { gatesSatisfied, resolveAdvanceWhen, resolveDialogueHoldMs } from "./types";
+import {
+  gatesSatisfied,
+  resolveAdvanceWhen,
+  resolveDialogueHoldMs,
+  resolveVoiceHoldMs,
+} from "./types";
 
 describe("project files", () => {
   it("round-trips a versioned NeoArchive project", () => {
@@ -18,10 +23,17 @@ describe("project files", () => {
 });
 
 describe("dialogue hold", () => {
-  it("uses the line hold, then scene AUTO, then text length", () => {
+  it("uses the line hold, then scene AUTO, then project default, then 2000", () => {
     expect(resolveDialogueHoldMs({ text: "你好", holdAfterMs: 2500 })).toBe(2500);
     expect(resolveDialogueHoldMs({ text: "你好" }, { autoAdvanceMs: 1200 })).toBe(1200);
-    expect(resolveDialogueHoldMs({ text: "你好世界" })).toBe(850);
+    expect(resolveDialogueHoldMs({ text: "你好" }, null, { dialogueHoldMs: 1500 })).toBe(1500);
+    expect(resolveDialogueHoldMs({ text: "你好世界" })).toBe(2000);
+  });
+
+  it("resolves the voice hold, defaulting to 500ms and supporting 0", () => {
+    expect(resolveVoiceHoldMs({})).toBe(500);
+    expect(resolveVoiceHoldMs({ voiceHoldMs: 0 })).toBe(0);
+    expect(resolveVoiceHoldMs({ voiceHoldMs: 1200 })).toBe(1200);
   });
 
   it("defaults voice-wait when a line has voice, and waits for all checked gates", () => {

@@ -11,7 +11,44 @@ function withCoverBackground(project: StoryProject): StoryProject {
   };
 }
 
-const draftStorageKey = "neoarchive:project-draft:v1";
+/** 剥离场景内的过渡过场行，保证默认无过渡。 */
+function stripTransitions(project: StoryProject): StoryProject {
+  return {
+    ...project,
+    chapters: project.chapters.map((chapter) => ({
+      ...chapter,
+      scenes: chapter.scenes.map((scene) => ({
+        ...scene,
+        cues: scene.cues.filter((cue) => cue.type !== "transition.play"),
+      })),
+    })),
+  };
+}
+
+const draftStorageKeyV1 = "neoarchive:project-draft:v1";
+const activeProjectKey = "neoarchive:active-project:v1";
+const draftPrefix = "neoarchive:project-draft:v1:";
+
+function draftStorageKey(projectId: string): string {
+  return `${draftPrefix}${projectId}`;
+}
+
+/** 当前激活的工程 id（用于读取最近打开的草稿）。 */
+export function getActiveProjectId(): string | null {
+  try {
+    return window.localStorage.getItem(activeProjectKey);
+  } catch {
+    return null;
+  }
+}
+
+export function setActiveProjectId(projectId: string): void {
+  try {
+    window.localStorage.setItem(activeProjectKey, projectId);
+  } catch {
+    // ignore
+  }
+}
 
 function isStoryProject(value: unknown): value is StoryProject {
   if (!value || typeof value !== "object") {
@@ -49,12 +86,28 @@ export function parseProjectFile(contents: string): StoryProject {
   if (!isStoryProject(parsed)) {
     throw new Error("文件不是有效的 NeoArchive schemaVersion 1 工程。");
   }
-  return withCoverBackground(parsed);
+  return stripTransitions(withCoverBackground(parsed));
 }
 
-export function loadDraftProject(): StoryProject | null {
+/** 读取指定工程的本地草稿；无则 null。 */
+export function loadDraftProjectFor(projectId: string): StoryProject | null {
   try {
-    const contents = window.localStorage.getItem(draftStorageKey);
+    const contents = window.localStorage.getItem(draftStorageKey(projectId));
+    return contents ? parseProjectFile(contents) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 读取当前激活工程的草稿（兼容旧单草稿键）。 */
+export function loadDraftProject(): StoryProject | null {
+  const active = getActiveProjectId();
+  if (active) {
+    return loadDraftProjectFor(active);
+  }
+  // 兼容旧版单草稿键
+  try {
+    const contents = window.localStorage.getItem(draftStorageKeyV1);
     return contents ? parseProjectFile(contents) : null;
   } catch {
     return null;
@@ -62,7 +115,16 @@ export function loadDraftProject(): StoryProject | null {
 }
 
 export function persistDraftProject(project: StoryProject): void {
-  window.localStorage.setItem(draftStorageKey, JSON.stringify(project));
+  window.localStorage.setItem(draftStorageKey(project.projectId), JSON.stringify(project));
+  setActiveProjectId(project.projectId);
+}
+
+/** 删除指定工程的本地草稿。 */
+export function deleteDraftProject(projectId: string): void {
+  window.localStorage.removeItem(draftStorageKey(projectId));
+  if (getActiveProjectId() === projectId) {
+    window.localStorage.removeItem(activeProjectKey);
+  }
 }
 
 export function serializeProject(project: StoryProject): string {

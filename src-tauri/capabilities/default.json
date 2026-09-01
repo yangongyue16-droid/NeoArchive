@@ -12,6 +12,8 @@
     "core:window:allow-set-resizable",
     "core:window:allow-center",
     "core:window:allow-is-maximized",
-    "core:window:allow-is-fullscreen"
+    "core:window:allow-is-fullscreen",
+    "shell:allow-execute",
+    "shell:allow-spawn"
   ]
 }

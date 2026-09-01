@@ -310,7 +310,6 @@ export function StoryStage({
           style={{ animationDuration: `${playback.backgroundTransitionMs}ms` }}
         />
       ) : null}
-      {background ? null : <div className="sky-grid" aria-hidden="true" />}
       {playback.characters.map((character) => {
         const skeletonUrl = resolveCharacter(character.characterRef);
         return skeletonUrl ? (
@@ -335,7 +334,7 @@ export function StoryStage({
           />
         ) : null,
       )}
-      {(dialogue || layoutEdit) && !hideHud ? (
+      {dialogue && !hideHud ? (
         <DialogueLayer
           dialogueBox={dialogueBox}
           layoutEdit={layoutEdit}

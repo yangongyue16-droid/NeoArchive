@@ -259,6 +259,31 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
             />
             <small>勾中的条件都满足后，再等这么久切下一句。成品和幕前共用。</small>
           </label>
+          {cue.voiceAssetRef ? (
+            <label>
+              <span>配音播完停留（秒）</span>
+              <input
+                min={0}
+                onChange={(event) => {
+                  const rawValue = event.currentTarget.value;
+                  if (rawValue === "") {
+                    onUpdate({ voiceHoldMs: undefined }, "voiceHoldMs");
+                    return;
+                  }
+                  const seconds = Number(rawValue);
+                  if (!Number.isFinite(seconds)) {
+                    return;
+                  }
+                  onUpdate({ voiceHoldMs: Math.max(0, Math.round(seconds * 1000)) }, "voiceHoldMs");
+                }}
+                placeholder="0.5（默认）"
+                step={0.25}
+                type="number"
+                value={cue.voiceHoldMs === undefined ? "" : cue.voiceHoldMs / 1000}
+              />
+              <small>配音播完后再停这么久。填 0 = 配音播完立即切下一句。</small>
+            </label>
+          ) : null}
           <fieldset className="advance-when">
             <legend>自动切下一句，等这些都完成</legend>
             <label className="checkbox-field">
@@ -315,16 +340,16 @@ export function CueInspector({ cue, onUpdate }: CueInspectorProps) {
             <span>背景素材</span>
             <select
               onChange={(event) => {
-                if (event.currentTarget.value !== "__custom__") {
+                if (
+                  event.currentTarget.value !== "__custom__" &&
+                  event.currentTarget.value !== "__empty__"
+                ) {
                   onUpdate({ assetRef: event.currentTarget.value }, "assetRef");
                 }
               }}
-              value={
-                backgroundOptions.some((option) => option.value === cue.assetRef)
-                  ? cue.assetRef
-                  : "__custom__"
-              }
+              value={cue.assetRef || "__empty__"}
             >
+              <option value="__empty__">（未选择 · 请选择背景）</option>
               {backgroundOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}

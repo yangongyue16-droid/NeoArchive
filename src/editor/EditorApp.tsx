@@ -6,6 +6,7 @@ import { getUserAsset } from "../assets/userAssets";
 import { useDialogueFont } from "../assets/useDialogueFont";
 import { LocalAssetPicker } from "./LocalAssetPicker";
 import { downloadProject, parseProjectFile } from "../project-schema/projectFile";
+import { sampleProject } from "../project-schema/sampleProject";
 import {
   backgroundFitOptions,
   normalizeDialogueBox,
@@ -15,6 +16,7 @@ import {
 } from "../project-schema/stage";
 import type { BackgroundFit } from "../project-schema/types";
 import type { DialogueRegionStyle } from "../project-schema/types";
+import type { SceneExitTransition } from "../project-schema/types";
 import { findScene, getAllScenes, resolveDialogueHoldMs } from "../project-schema/types";
 import { StoryStage } from "../player/StoryStage";
 import { useAutoAdvance } from "../runtime/useAutoAdvance";
@@ -23,11 +25,198 @@ import { useEditorStore } from "../state/editorStore";
 import { transitionPresets } from "../transitions/presets";
 import { CueInspector } from "./CueInspector";
 import { ScriptTimeline } from "./ScriptTimeline";
+import {
+  addBookmark,
+  deleteBookmark,
+  listBookmarks,
+  renameBookmark,
+  type Bookmark,
+} from "./bookmarks";
+import {
+  createNewProject,
+  deleteProject,
+  listProjects,
+  openProjectDraft,
+  renameProject,
+  type ProjectMeta,
+} from "../project-schema/projects";
 
 type ThemeMode = "day" | "night";
 type WorkMode = "script" | "stage";
 
-export function EditorApp() {
+type DeferredNumberInputProps = {
+  allowEmpty?: boolean;
+  max?: number;
+  min?: number;
+  onCommit: (value: number | null) => void;
+  placeholder?: string;
+  step?: number;
+  value: number | null;
+};
+
+/**
+ * 数字输入：先写在本地草稿，失焦 / 回车才提交。
+ * 解决「改 48 → 50 删不掉、全选输入被 min/max/步进钳制」的问题。
+ * allowEmpty 为 true 时清空输入会提交 null（用于清除可选字段）。
+ */
+function DeferredNumberInput({
+  allowEmpty = false,
+  max,
+  min,
+  onCommit,
+  placeholder,
+  step = 1,
+  value,
+}: DeferredNumberInputProps) {
+  const [draft, setDraft] = useState(value === null ? "" : String(value));
+
+  useEffect(() => {
+    setDraft(value === null ? "" : String(value));
+  }, [value]);
+
+  const commit = () => {
+    const rawValue = draft.trim();
+    if (rawValue === "") {
+      if (allowEmpty) {
+        onCommit(null);
+        return;
+      }
+      setDraft(value === null ? "" : String(value));
+      return;
+    }
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) {
+      setDraft(value === null ? "" : String(value));
+      return;
+    }
+    const decimals = step < 1 ? 1 : 0;
+    let nextValue = Number(parsed.toFixed(decimals));
+    if (min !== undefined) {
+      nextValue = Math.max(min, nextValue);
+    }
+    if (max !== undefined) {
+      nextValue = Math.min(max, nextValue);
+    }
+    setDraft(String(nextValue));
+    onCommit(nextValue);
+  };
+
+  return (
+    <input
+      inputMode="decimal"
+      max={max}
+      min={min}
+      onBlur={commit}
+      onChange={(event) => setDraft(event.currentTarget.value)}
+      onFocus={(event) => event.currentTarget.select()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          commit();
+          event.currentTarget.blur();
+        }
+        if (event.key === "Escape") {
+          setDraft(value === null ? "" : String(value));
+          event.currentTarget.blur();
+        }
+      }}
+      placeholder={placeholder}
+      step={step}
+      type="number"
+      value={draft}
+    />
+  );
+}
+
+function defaultDurationForPreset(preset: SceneExitTransition["preset"]): number {
+  return preset === "none" ? 0 : preset === "chromatic-slice" ? 1800 : 900;
+}
+
+function SceneTransitionEditor({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value?: SceneExitTransition | null;
+  onChange: (transition: SceneExitTransition) => void;
+}) {
+  const preset = value?.preset ?? "none";
+  const durationMs = value?.durationMs ?? defaultDurationForPreset(preset);
+  const holdMs = value?.holdMs ?? 0;
+  const disabled = preset === "none";
+  return (
+    <>
+      <label>
+        <span>{label}</span>
+        <select
+          onChange={(event) => {
+            const nextPreset = event.currentTarget
+              .value as (typeof transitionPresets)[number]["value"];
+            onChange({
+              preset: nextPreset,
+              durationMs: defaultDurationForPreset(nextPreset),
+              holdMs: nextPreset === "none" ? 0 : 120,
+              intensity: 1,
+            });
+          }}
+          value={preset}
+        >
+          {transitionPresets.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="field-row stage-size-fields">
+        <label>
+          <span>过渡时长（ms）</span>
+          <input
+            disabled={disabled}
+            min={0}
+            onChange={(event) => {
+              const next = Number(event.currentTarget.value);
+              if (Number.isFinite(next)) {
+                onChange({
+                  preset,
+                  durationMs: Math.max(0, next),
+                  holdMs,
+                  intensity: value?.intensity ?? 1,
+                });
+              }
+            }}
+            type="number"
+            value={durationMs}
+          />
+          <small>过渡动画播多久。</small>
+        </label>
+        <label>
+          <span>停留（ms）</span>
+          <input
+            disabled={disabled}
+            min={0}
+            onChange={(event) => {
+              const next = Number(event.currentTarget.value);
+              if (Number.isFinite(next)) {
+                onChange({
+                  preset,
+                  durationMs,
+                  holdMs: Math.max(0, next),
+                  intensity: value?.intensity ?? 1,
+                });
+              }
+            }}
+            type="number"
+            value={holdMs}
+          />
+          <small>画面布满后再停多久。</small>
+        </label>
+      </div>
+    </>
+  );
+}
+
+export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
   const project = useEditorStore((state) => state.project);
   const selectedSceneId = useEditorStore((state) => state.selectedSceneId);
   const selectedCueId = useEditorStore((state) => state.selectedCueId);
@@ -40,6 +229,8 @@ export function EditorApp() {
   const renameScene = useEditorStore((state) => state.renameScene);
   const setSceneAutoAdvance = useEditorStore((state) => state.setSceneAutoAdvance);
   const setSceneExit = useEditorStore((state) => state.setSceneExit);
+  const setSceneEntry = useEditorStore((state) => state.setSceneEntry);
+  const setSceneEnding = useEditorStore((state) => state.setSceneEnding);
   const deleteScene = useEditorStore((state) => state.deleteScene);
   const addCue = useEditorStore((state) => state.addCue);
   const updateCue = useEditorStore((state) => state.updateCue);
@@ -49,8 +240,11 @@ export function EditorApp() {
   const reorderCue = useEditorStore((state) => state.reorderCue);
   const loadProject = useEditorStore((state) => state.loadProject);
   const setDialogueFont = useEditorStore((state) => state.setDialogueFont);
+  const setDialogueHoldMs = useEditorStore((state) => state.setDialogueHoldMs);
+  const setDialogueTypingCps = useEditorStore((state) => state.setDialogueTypingCps);
   const setStageSettings = useEditorStore((state) => state.setStageSettings);
   const setDialogueBox = useEditorStore((state) => state.setDialogueBox);
+  const applyDialogueToAll = useEditorStore((state) => state.applyDialogueToAll);
   const markSaved = useEditorStore((state) => state.markSaved);
   const undo = useEditorStore((state) => state.undo);
   const redo = useEditorStore((state) => state.redo);
@@ -59,11 +253,24 @@ export function EditorApp() {
   const backendDocumentRef = useRef<Pick<ProjectDocument, "project" | "revision"> | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [projectBusy, setProjectBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => listBookmarks(project.projectId));
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [projects, setProjects] = useState<ProjectMeta[]>(() => listProjects());
   const [workMode, setWorkMode] = useState<WorkMode>("script");
   const [exclusiveFullscreen, setExclusiveFullscreen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() =>
     window.localStorage.getItem("neoarchive-theme") === "day" ? "day" : "night",
   );
+  // 预览区高度（百分比），分隔条可拖拽调整；幕前/幕后共用。
+  const [previewHeightPct, setPreviewHeightPct] = useState(() => {
+    const stored = window.localStorage.getItem("neoarchive-preview-height");
+    const parsed = stored ? Number(stored) : NaN;
+    return Number.isFinite(parsed) ? Math.min(90, Math.max(30, parsed)) : 62;
+  });
+  const previewHeightRef = useRef(previewHeightPct);
+  previewHeightRef.current = previewHeightPct;
   const activeScene = findScene(project, selectedSceneId) ?? getAllScenes(project)[0];
   const selectedCue =
     activeScene.cues.find((cue) => cue.id === selectedCueId) ?? activeScene.cues[0] ?? null;
@@ -190,6 +397,88 @@ export function EditorApp() {
     }
   };
 
+  const saveBookmark = () => {
+    const name = window.prompt(
+      "为当前场景存一个书签（命名后就知道是哪段剧情）：",
+      activeScene.title,
+    );
+    if (!name || name.trim() === "") {
+      return;
+    }
+    addBookmark(project.projectId, name, activeScene.id);
+    setBookmarks(listBookmarks(project.projectId));
+    setNotice("已保存书签");
+  };
+
+  const jumpToBookmark = (bookmark: Bookmark) => {
+    const scene = findScene(project, bookmark.sceneId);
+    if (!scene) {
+      setNotice("书签引用的场景不存在");
+      return;
+    }
+    selectScene(bookmark.sceneId);
+    setBookmarksOpen(false);
+  };
+
+  const renameBookmarkFor = (bookmark: Bookmark) => {
+    const name = window.prompt("给书签起个名字：", bookmark.name);
+    if (!name || name.trim() === "") {
+      return;
+    }
+    setBookmarks(renameBookmark(project.projectId, bookmark.id, name));
+  };
+
+  const removeBookmark = (bookmark: Bookmark) => {
+    setBookmarks(deleteBookmark(project.projectId, bookmark.id));
+  };
+
+  const handleCreateProject = () => {
+    const title = window.prompt("新工程名称：", "未命名工程");
+    if (!title) {
+      return;
+    }
+    const { meta } = createNewProject(title);
+    setProjects(listProjects());
+    setProjectsOpen(false);
+    const draft = openProjectDraft(meta.projectId);
+    if (draft) {
+      loadProject(draft);
+      setNotice(`已新建并打开「${draft.title}」`);
+    }
+  };
+
+  const handleOpenProject = (meta: ProjectMeta) => {
+    const draft = openProjectDraft(meta.projectId);
+    if (!draft) {
+      setNotice("该工程没有本地草稿，无法打开");
+      return;
+    }
+    loadProject(draft);
+    setProjectsOpen(false);
+    setNotice(`已打开「${draft.title}」`);
+  };
+
+  const handleRenameProject = (meta: ProjectMeta) => {
+    const title = window.prompt("重命名工程：", meta.title);
+    if (!title || title.trim() === "") {
+      return;
+    }
+    const next = renameProject(meta.projectId, title);
+    setProjects(next);
+  };
+
+  const handleDeleteProject = (meta: ProjectMeta) => {
+    if (!window.confirm(`确定删除工程「${meta.title}」？本地草稿会一并删除。`)) {
+      return;
+    }
+    const next = deleteProject(meta.projectId);
+    setProjects(next);
+    if (meta.projectId === project.projectId) {
+      // 删除的是当前工程，回退到示例工程
+      loadProject(structuredClone(sampleProject));
+    }
+  };
+
   return (
     <main className={`app-shell work-mode-${workMode}`}>
       <header className="topbar">
@@ -224,6 +513,16 @@ export function EditorApp() {
           </button>
         </nav>
         <div className="topbar-actions">
+          <button
+            className="history-button"
+            onClick={() => {
+              useEditorStore.getState().flushDraft();
+              onBackHome?.();
+            }}
+            type="button"
+          >
+            主页
+          </button>
           <button
             className="history-button"
             disabled={pastCount === 0}
@@ -262,6 +561,23 @@ export function EditorApp() {
             type="button"
           >
             保存
+          </button>
+          <button
+            className="history-button"
+            onClick={() => setSettingsOpen((current) => !current)}
+            type="button"
+          >
+            设置
+          </button>
+          <button
+            className="history-button"
+            onClick={() => {
+              setProjects(listProjects());
+              setProjectsOpen(true);
+            }}
+            type="button"
+          >
+            工程库
           </button>
           <input
             accept=".json,.neoarchive"
@@ -329,6 +645,182 @@ export function EditorApp() {
         </button>
       ) : null}
 
+      {settingsOpen ? (
+        <div className="settings-overlay" role="dialog" aria-modal="true" aria-label="工程设置">
+          <section className="settings-panel">
+            <header>
+              <div>
+                <p className="eyebrow">PROJECT SETTINGS</p>
+                <h2>工程设置</h2>
+              </div>
+              <button onClick={() => setSettingsOpen(false)} type="button">
+                关闭
+              </button>
+            </header>
+            <label>
+              <span>全局打字速度（字/秒）</span>
+              <DeferredNumberInput
+                allowEmpty
+                min={1}
+                onCommit={(v) => setDialogueTypingCps(v === null ? undefined : v)}
+                placeholder="8"
+                step={1}
+                value={project.dialogueTypingCps ?? null}
+              />
+              <small>所有对白统一按这个速度逐字出现；留空用默认 8。</small>
+            </label>
+            <label>
+              <span>全局默认停留（秒）</span>
+              <DeferredNumberInput
+                allowEmpty
+                min={0}
+                onCommit={(v) => setDialogueHoldMs(v === null ? undefined : Math.round(v * 1000))}
+                placeholder="2"
+                step={0.25}
+                value={project.dialogueHoldMs === undefined ? null : project.dialogueHoldMs / 1000}
+              />
+              <small>无配音句子播完停这么久；单句可在幕前单独覆盖。</small>
+            </label>
+            <div className="settings-section">
+              <strong>对话框排版</strong>
+              <label>
+                <span>对话框高度（%）</span>
+                <input
+                  max={80}
+                  min={18}
+                  onChange={(event) =>
+                    setDialogueBox({ heightPercent: Number(event.currentTarget.value) })
+                  }
+                  type="range"
+                  value={dialogueBox.heightPercent}
+                />
+                <small>{dialogueBox.heightPercent}%</small>
+              </label>
+              {(
+                [
+                  ["speaker", "说话人字号"],
+                  ["subtitle", "身份字号"],
+                  ["text", "正文字号"],
+                ] as const
+              ).map(([key, label]) => {
+                const region = dialogueBox[key];
+                const updateRegion = (patch: Partial<DialogueRegionStyle>) =>
+                  setDialogueBox({ [key]: { ...region, ...patch } });
+                return (
+                  <label key={key}>
+                    <span>{label}</span>
+                    <DeferredNumberInput
+                      max={120}
+                      min={8}
+                      onCommit={(v) => v !== null && updateRegion({ fontSize: v })}
+                      step={0.1}
+                      value={region.fontSize}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {bookmarksOpen ? (
+        <div className="settings-overlay" role="dialog" aria-modal="true" aria-label="存档">
+          <section className="settings-panel">
+            <header>
+              <div>
+                <p className="eyebrow">BOOKMARKS</p>
+                <h2>存档</h2>
+              </div>
+              <button onClick={() => setBookmarksOpen(false)} type="button">
+                关闭
+              </button>
+            </header>
+            <button className="save-new" onClick={saveBookmark} type="button">
+              ＋ 为当前场景存书签
+            </button>
+            <div className="bookmark-list">
+              {bookmarks.length === 0 ? (
+                <p className="empty-saves">还没有存档。选中一个场景后点「为当前场景存书签」。</p>
+              ) : (
+                bookmarks.map((bookmark) => {
+                  const scene = findScene(project, bookmark.sceneId);
+                  return (
+                    <article className="bookmark-row" key={bookmark.id}>
+                      <div className="bookmark-meta">
+                        <strong>{bookmark.name}</strong>
+                        <span>{scene?.title ?? bookmark.sceneId}</span>
+                        <time>{new Date(bookmark.createdAt).toLocaleString()}</time>
+                      </div>
+                      <div className="save-actions row">
+                        <button onClick={() => jumpToBookmark(bookmark)} type="button">
+                          跳转
+                        </button>
+                        <button onClick={() => renameBookmarkFor(bookmark)} type="button">
+                          改名
+                        </button>
+                        <button onClick={() => removeBookmark(bookmark)} type="button">
+                          删除
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {projectsOpen ? (
+        <div className="settings-overlay" role="dialog" aria-modal="true" aria-label="工程库">
+          <section className="settings-panel project-panel">
+            <header>
+              <div>
+                <p className="eyebrow">PROJECT LIBRARY</p>
+                <h2>工程库</h2>
+              </div>
+              <button onClick={() => setProjectsOpen(false)} type="button">
+                关闭
+              </button>
+            </header>
+            <button className="save-new" onClick={handleCreateProject} type="button">
+              ＋ 新建工程
+            </button>
+            <div className="bookmark-list project-list">
+              {projects.length === 0 ? (
+                <p className="empty-saves">
+                  还没有工程。点「新建工程」创建，或从顶栏「导入」打开 .neoarchive.json。
+                </p>
+              ) : (
+                projects.map((meta) => (
+                  <article className="project-row" key={meta.projectId}>
+                    <div className="project-meta">
+                      <strong>{meta.title}</strong>
+                      {meta.projectId === project.projectId ? (
+                        <span className="is-current">当前</span>
+                      ) : null}
+                      <time>{new Date(meta.updatedAt).toLocaleString()}</time>
+                    </div>
+                    <div className="save-actions row">
+                      <button onClick={() => handleOpenProject(meta)} type="button">
+                        打开
+                      </button>
+                      <button onClick={() => handleRenameProject(meta)} type="button">
+                        改名
+                      </button>
+                      <button onClick={() => handleDeleteProject(meta)} type="button">
+                        删除
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <section className="workspace">
         <aside className="panel scene-panel" aria-label="场景列表">
           <div className="panel-heading">
@@ -336,9 +828,25 @@ export function EditorApp() {
               <p className="eyebrow">{project.chapters[0]?.title.toUpperCase()}</p>
               <h2>场景管理</h2>
             </div>
-            <button className="icon-button" onClick={addScene} type="button" aria-label="添加场景">
-              ＋
-            </button>
+            <div className="scene-heading-actions">
+              <button
+                className="bookmark-button"
+                onClick={() => setBookmarksOpen(true)}
+                type="button"
+                aria-label="存档"
+                title="存档（书签）"
+              >
+                书签
+              </button>
+              <button
+                className="icon-button"
+                onClick={addScene}
+                type="button"
+                aria-label="添加场景"
+              >
+                ＋
+              </button>
+            </div>
           </div>
           <div className="scene-editor">
             <label>
@@ -396,31 +904,26 @@ export function EditorApp() {
               </select>
             </label>
             {activeScene.nextSceneId ? (
-              <label>
-                <span>切到下一场</span>
-                <select
-                  onChange={(event) => {
-                    const preset = event.currentTarget
-                      .value as (typeof transitionPresets)[number]["value"];
-                    setSceneExit(activeScene.id, {
-                      exitTransition: {
-                        preset,
-                        durationMs:
-                          preset === "none" ? 0 : preset === "chromatic-slice" ? 1800 : 900,
-                        holdMs: preset === "none" ? 0 : 120,
-                        intensity: 1,
-                      },
-                    });
-                  }}
-                  value={activeScene.exitTransition?.preset ?? "none"}
-                >
-                  {transitionPresets.map((preset) => (
-                    <option key={preset.value} value={preset.value}>
-                      {preset.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <SceneTransitionEditor
+                label="切到下一场"
+                onChange={(transition) =>
+                  setSceneExit(activeScene.id, { exitTransition: transition })
+                }
+                value={activeScene.exitTransition}
+              />
+            ) : (
+              <SceneTransitionEditor
+                label="收尾过渡"
+                onChange={(transition) => setSceneEnding(activeScene.id, transition)}
+                value={activeScene.endingTransition}
+              />
+            )}
+            {activeScene.id === project.entrySceneId ? (
+              <SceneTransitionEditor
+                label="入场过渡"
+                onChange={(transition) => setSceneEntry(activeScene.id, transition)}
+                value={activeScene.entryTransition}
+              />
             ) : null}
             {workMode === "script" ? (
               <button
@@ -546,7 +1049,10 @@ export function EditorApp() {
           </nav>
         </aside>
 
-        <section className="stage-column">
+        <section
+          className="stage-column"
+          style={{ "--preview-h": `${previewHeightPct}%` } as React.CSSProperties}
+        >
           <div className="stage-toolbar">
             <span>
               {stageSummary(stage)} · {playback.status} · {selectedCue?.type ?? "empty"}
@@ -584,6 +1090,33 @@ export function EditorApp() {
             />
           </div>
 
+          <div
+            aria-label="调整预览区高度"
+            className="stage-resize-handle"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              const column = event.currentTarget.parentElement;
+              if (!column) {
+                return;
+              }
+              const startY = event.clientY;
+              const startHeight = column.getBoundingClientRect().height;
+              const startPct = previewHeightRef.current;
+              const onMove = (moveEvent: PointerEvent) => {
+                const delta = moveEvent.clientY - startY;
+                const nextPct = Math.min(90, Math.max(30, startPct + (delta / startHeight) * 100));
+                setPreviewHeightPct(nextPct);
+                window.localStorage.setItem("neoarchive-preview-height", String(nextPct));
+              };
+              const onUp = () => {
+                window.removeEventListener("pointermove", onMove);
+                window.removeEventListener("pointerup", onUp);
+              };
+              window.addEventListener("pointermove", onMove);
+              window.addEventListener("pointerup", onUp);
+            }}
+          />
+
           <ScriptTimeline
             onAdd={(type) => addCue(activeScene.id, type)}
             onDelete={(cueId) => deleteCue(activeScene.id, cueId)}
@@ -608,65 +1141,52 @@ export function EditorApp() {
                   <h2>对话框</h2>
                 </div>
               </div>
-              <label>
-                <span>对话框高度（%）</span>
-                <input
-                  max={80}
-                  min={18}
-                  onChange={(event) =>
-                    setDialogueBox({ heightPercent: Number(event.currentTarget.value) })
-                  }
-                  type="range"
-                  value={dialogueBox.heightPercent}
-                />
-                <small>{dialogueBox.heightPercent}%</small>
-              </label>
               <div className="dialogue-region-editor">
                 <strong>分割线</strong>
                 <div className="field-row stage-size-fields">
                   <label>
                     <span>X</span>
-                    <input
+                    <DeferredNumberInput
                       max={100}
                       min={0}
-                      onChange={(event) =>
+                      onCommit={(v) =>
+                        v !== null &&
                         setDialogueBox({
-                          rule: { ...dialogueBox.rule, x: Number(event.currentTarget.value) },
+                          rule: { ...dialogueBox.rule, x: v },
                         })
                       }
                       step={0.1}
-                      type="number"
                       value={dialogueBox.rule.x}
                     />
                   </label>
                   <label>
                     <span>Y</span>
-                    <input
+                    <DeferredNumberInput
                       max={100}
                       min={0}
-                      onChange={(event) =>
+                      onCommit={(v) =>
+                        v !== null &&
                         setDialogueBox({
-                          rule: { ...dialogueBox.rule, y: Number(event.currentTarget.value) },
+                          rule: { ...dialogueBox.rule, y: v },
                         })
                       }
                       step={0.1}
-                      type="number"
                       value={dialogueBox.rule.y}
                     />
                   </label>
                 </div>
                 <label>
                   <span>长度</span>
-                  <input
+                  <DeferredNumberInput
                     max={100}
                     min={4}
-                    onChange={(event) =>
+                    onCommit={(v) =>
+                      v !== null &&
                       setDialogueBox({
-                        rule: { ...dialogueBox.rule, width: Number(event.currentTarget.value) },
+                        rule: { ...dialogueBox.rule, width: v },
                       })
                     }
                     step={0.1}
-                    type="number"
                     value={dialogueBox.rule.width}
                   />
                 </label>
@@ -674,35 +1194,23 @@ export function EditorApp() {
               {selectedCue?.type === "dialogue.show" ? (
                 <label>
                   <span>本句播完停留（秒）</span>
-                  <input
+                  <DeferredNumberInput
+                    allowEmpty
                     min={0}
-                    onChange={(event) => {
-                      const rawValue = event.currentTarget.value;
-                      if (rawValue === "") {
-                        updateCue(
-                          activeScene.id,
-                          selectedCue.id,
-                          { holdAfterMs: undefined },
-                          "holdAfterMs",
-                        );
-                        return;
-                      }
-                      const seconds = Number(rawValue);
-                      if (!Number.isFinite(seconds)) {
-                        return;
-                      }
+                    onCommit={(v) =>
                       updateCue(
                         activeScene.id,
                         selectedCue.id,
-                        { holdAfterMs: Math.max(0, Math.round(seconds * 1000)) },
+                        v === null
+                          ? { holdAfterMs: undefined }
+                          : { holdAfterMs: Math.max(0, Math.round(v * 1000)) },
                         "holdAfterMs",
-                      );
-                    }}
-                    placeholder={`${resolveDialogueHoldMs({ text: selectedCue.text }, activeScene) / 1000}`}
+                      )
+                    }
+                    placeholder={`${resolveDialogueHoldMs({ text: selectedCue.text }, activeScene, project) / 1000}`}
                     step={0.25}
-                    type="number"
                     value={
-                      selectedCue.holdAfterMs === undefined ? "" : selectedCue.holdAfterMs / 1000
+                      selectedCue.holdAfterMs === undefined ? null : selectedCue.holdAfterMs / 1000
                     }
                   />
                   <small>留空用场景 AUTO。成品和「播放场景」共用这个数。</small>
@@ -714,7 +1222,8 @@ export function EditorApp() {
                 className="button button-secondary"
                 onClick={() => {
                   setDialogueBox(dialogueBox);
-                  setNotice("已将当前对话框样式应用到全部场景");
+                  applyDialogueToAll();
+                  setNotice("已将对话框样式与停留时间应用到全部台词");
                 }}
                 type="button"
               >
@@ -722,9 +1231,9 @@ export function EditorApp() {
               </button>
               {(
                 [
-                  ["speaker", "说话人"],
-                  ["subtitle", "身份"],
-                  ["text", "正文"],
+                  ["speaker", "说话人位置"],
+                  ["subtitle", "身份位置"],
+                  ["text", "正文位置"],
                 ] as const
               ).map(([key, label]) => {
                 const region = dialogueBox[key];
@@ -733,43 +1242,24 @@ export function EditorApp() {
                 return (
                   <div className="dialogue-region-editor" key={key}>
                     <strong>{label}</strong>
-                    <label>
-                      <span>字号</span>
-                      <input
-                        max={120}
-                        min={8}
-                        onChange={(event) =>
-                          updateRegion({ fontSize: Number(event.currentTarget.value) })
-                        }
-                        step={0.1}
-                        type="number"
-                        value={region.fontSize}
-                      />
-                    </label>
                     <div className="field-row stage-size-fields">
                       <label>
                         <span>X</span>
-                        <input
+                        <DeferredNumberInput
                           max={100}
                           min={0}
-                          onChange={(event) =>
-                            updateRegion({ x: Number(event.currentTarget.value) })
-                          }
+                          onCommit={(v) => v !== null && updateRegion({ x: v })}
                           step={0.1}
-                          type="number"
                           value={region.x}
                         />
                       </label>
                       <label>
                         <span>Y</span>
-                        <input
+                        <DeferredNumberInput
                           max={100}
                           min={0}
-                          onChange={(event) =>
-                            updateRegion({ y: Number(event.currentTarget.value) })
-                          }
+                          onCommit={(v) => v !== null && updateRegion({ y: v })}
                           step={0.1}
-                          type="number"
                           value={region.y}
                         />
                       </label>

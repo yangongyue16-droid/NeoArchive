@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { sampleProject } from "../project-schema/sampleProject";
+import type { StoryProject } from "../project-schema/types";
 import { StoryRuntime } from "./StoryRuntime";
 
 function completeStageActions(runtime: StoryRuntime): void {
@@ -369,7 +370,22 @@ describe("StoryRuntime", () => {
   });
 
   it("projects a versioned stage transition event", () => {
-    const runtime = new StoryRuntime(sampleProject);
+    const project = structuredClone(sampleProject);
+    const secondScene = project.chapters[0]?.scenes[1];
+    if (!secondScene) {
+      throw new Error("Expected second scene fixture");
+    }
+    secondScene.cues.unshift({
+      id: "cue-transition-002",
+      type: "transition.play",
+      atMs: 0,
+      preset: "archive-shutter",
+      durationMs: 1100,
+      holdMs: 120,
+      intensity: 1,
+    });
+
+    const runtime = new StoryRuntime(project);
 
     runtime.preview("scene-002", "cue-transition-002");
     const firstInstance = runtime.getSnapshot().transition?.instanceId;
@@ -395,22 +411,29 @@ describe("StoryRuntime", () => {
 
   it("carries project-defined time-wheel display settings into playback", () => {
     const project = structuredClone(sampleProject);
-    const transition = project.chapters[0]?.scenes[1]?.cues.find(
-      (cue) => cue.type === "transition.play",
-    );
-    if (!transition || transition.type !== "transition.play") {
-      throw new Error("Expected transition fixture");
+    const secondScene = project.chapters[0]?.scenes[1];
+    if (!secondScene) {
+      throw new Error("Expected second scene fixture");
     }
-    transition.preset = "chromatic-slice";
-    transition.timeWheel = {
-      source: "custom",
-      customDateTime: "2032-04-17T09:26:00",
-      precision: "minute",
-      showDate: true,
-      showWeekday: false,
-      showTime: true,
-      showTimezone: false,
+    const transition: import("../project-schema/types").TransitionPlayCue = {
+      id: "cue-transition-timewheel",
+      type: "transition.play",
+      atMs: 0,
+      preset: "chromatic-slice",
+      durationMs: 1200,
+      holdMs: 120,
+      intensity: 1,
+      timeWheel: {
+        source: "custom",
+        customDateTime: "2032-04-17T09:26:00",
+        precision: "minute",
+        showDate: true,
+        showWeekday: false,
+        showTime: true,
+        showTimezone: false,
+      },
     };
+    secondScene.cues.unshift(transition);
 
     const runtime = new StoryRuntime(project);
     runtime.preview("scene-002", transition.id);
@@ -470,5 +493,177 @@ describe("StoryRuntime", () => {
       dialogue: { cueId: "cue-dialogue-001" },
     });
     expect(runtime.getSnapshot().characters).toHaveLength(1);
+  });
+
+  it("stops a nextSceneId cycle instead of looping forever", () => {
+    const project: StoryProject = {
+      ...structuredClone(sampleProject),
+      entrySceneId: "scene-loop-a",
+      chapters: [
+        {
+          id: "chapter-loop",
+          title: "Loop",
+          scenes: [
+            {
+              id: "scene-loop-a",
+              title: "A",
+              kind: "dialogue",
+              nextSceneId: "scene-loop-b",
+              cues: [
+                { id: "cue-loop-a", type: "wait", atMs: 0, durationMs: 0, waitForAdvance: false },
+              ],
+            },
+            {
+              id: "scene-loop-b",
+              title: "B",
+              kind: "dialogue",
+              nextSceneId: "scene-loop-a",
+              cues: [
+                { id: "cue-loop-b", type: "wait", atMs: 0, durationMs: 0, waitForAdvance: false },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+
+    expect(runtime.getSnapshot().status).toBe("error");
+    expect(runtime.getSnapshot().error).toContain("场景连接成环");
+  });
+
+  it("stops a choice option cycle instead of looping forever", () => {
+    const project: StoryProject = {
+      ...structuredClone(sampleProject),
+      entrySceneId: "scene-opt-a",
+      chapters: [
+        {
+          id: "chapter-opt",
+          title: "Loop",
+          scenes: [
+            {
+              id: "scene-opt-a",
+              title: "A",
+              kind: "dialogue",
+              cues: [
+                {
+                  id: "cue-opt-choice-b",
+                  type: "choice.show",
+                  atMs: 0,
+                  prompt: "go",
+                  options: [{ id: "go-b", label: "B", targetSceneId: "scene-opt-b" }],
+                },
+              ],
+            },
+            {
+              id: "scene-opt-b",
+              title: "B",
+              kind: "dialogue",
+              cues: [
+                {
+                  id: "cue-opt-choice-a",
+                  type: "choice.show",
+                  atMs: 0,
+                  prompt: "back",
+                  options: [{ id: "go-a", label: "A", targetSceneId: "scene-opt-a" }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+    for (let i = 0; i < 30; i += 1) {
+      if (runtime.getSnapshot().status === "error") {
+        break;
+      }
+      if (runtime.getSnapshot().status === "waiting_user") {
+        const option = runtime.getSnapshot().choices[0];
+        if (option) {
+          runtime.choose(option.id);
+        }
+      }
+    }
+
+    expect(runtime.getSnapshot().status).toBe("error");
+    expect(runtime.getSnapshot().error).toContain("场景连接成环");
+  });
+
+  it("plays an entry transition before the first scene", () => {
+    const project = structuredClone(sampleProject);
+    const firstScene = project.chapters[0]?.scenes[0];
+    if (!firstScene) {
+      throw new Error("Expected first scene fixture");
+    }
+    firstScene.entryTransition = {
+      preset: "fade-black",
+      durationMs: 600,
+      holdMs: 60,
+      intensity: 1,
+    };
+
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+
+    const transitionInstanceId = runtime.getSnapshot().transition?.instanceId;
+    if (transitionInstanceId === undefined) {
+      throw new Error("Expected entry transition instance");
+    }
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: "playing",
+      sceneId: "scene-001",
+      transition: { preset: "fade-black" },
+    });
+
+    runtime.notifyTransitionCovered(transitionInstanceId);
+    runtime.notifyTransitionCompleted(transitionInstanceId);
+    completeStageActions(runtime);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: "waiting_user",
+      sceneId: "scene-001",
+      dialogue: { cueId: "cue-dialogue-001" },
+    });
+  });
+
+  it("plays an ending transition before completing the last scene", () => {
+    const project = structuredClone(sampleProject);
+    const scenes = project.chapters[0]?.scenes ?? [];
+    const lastScene = scenes.find((scene) => scene.id === "scene-002");
+    if (!lastScene) {
+      throw new Error("Expected last scene fixture");
+    }
+    lastScene.endingTransition = {
+      preset: "fade-black",
+      durationMs: 800,
+      holdMs: 100,
+      intensity: 1,
+    };
+    lastScene.nextSceneId = undefined;
+
+    const runtime = new StoryRuntime(project);
+    runtime.start("scene-002");
+    completeStageActions(runtime);
+    runtime.advance();
+    completeStageActions(runtime);
+    runtime.advance();
+    completeStageActions(runtime);
+
+    const transitionInstanceId = runtime.getSnapshot().transition?.instanceId;
+    if (transitionInstanceId === undefined) {
+      throw new Error("Expected ending transition instance");
+    }
+    expect(runtime.getSnapshot().transition?.preset).toBe("fade-black");
+
+    runtime.notifyTransitionCompleted(transitionInstanceId);
+    expect(runtime.getSnapshot()).toMatchObject({
+      status: "completed",
+      transition: null,
+      dialogue: null,
+    });
   });
 });

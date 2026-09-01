@@ -4,6 +4,7 @@ import {
   gatesSatisfied,
   resolveAdvanceWhen,
   resolveDialogueHoldMs,
+  resolveVoiceHoldMs,
   type StoryProject,
 } from "../project-schema/types";
 import type { PlaybackState, StoryRuntime } from "./StoryRuntime";
@@ -69,13 +70,13 @@ export function useAutoAdvance(
     if (!gatesSatisfied(required, ready)) {
       return;
     }
-    timerRef.current = window.setTimeout(
-      () => {
-        timerRef.current = null;
-        runtime.advance();
-      },
-      resolveDialogueHoldMs(dialogueCue, scene),
-    );
+    const holdMs = dialogueCue.voiceAssetRef
+      ? resolveVoiceHoldMs(dialogueCue)
+      : resolveDialogueHoldMs(dialogueCue, scene, project);
+    timerRef.current = window.setTimeout(() => {
+      timerRef.current = null;
+      runtime.advance();
+    }, holdMs);
     return () => {
       if (timerRef.current !== null) {
         window.clearTimeout(timerRef.current);

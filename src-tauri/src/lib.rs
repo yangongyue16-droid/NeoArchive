@@ -98,7 +98,34 @@ pub fn run() {
                 command = command.args(["--session-token", &session_token]);
             }
             let (mut events, child) = command.spawn()?;
-            tauri::async_runtime::spawn(async move { while events.recv().await.is_some() {} });
+            let log_path = std::env::temp_dir().join("neoarchive-sidecar.log");
+            let log_file = std::fs::File::create(&log_path).ok();
+            tauri::async_runtime::spawn(async move {
+                while let Some(event) = events.recv().await {
+                    use tauri_plugin_shell::process::CommandEvent;
+                    match event {
+                        CommandEvent::Stdout(bytes) => {
+                            if let Some(file) = &log_file {
+                                let _ = std::io::Write::write_all(
+                                    &mut &*file,
+                                    &b"OUT: "[..],
+                                );
+                                let _ = std::io::Write::write_all(&mut &*file, &bytes);
+                            }
+                        }
+                        CommandEvent::Stderr(bytes) => {
+                            if let Some(file) = &log_file {
+                                let _ = std::io::Write::write_all(
+                                    &mut &*file,
+                                    &b"ERR: "[..],
+                                );
+                                let _ = std::io::Write::write_all(&mut &*file, &bytes);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            });
             app.manage(BackendProcess(Mutex::new(Some(child))));
             Ok(())
         })

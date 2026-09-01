@@ -1,5 +1,7 @@
 import {
   findScene,
+  getAllScenes,
+  resolveDialogueTypingCps,
   type CharacterTransform,
   type Scene,
   type StoryCue,
@@ -119,6 +121,9 @@ export class StoryRuntime {
     nextCueIndex: number;
   } | null = null;
   private pendingSceneTransition: { instanceId: number; targetSceneId: string } | null = null;
+  private pendingEntryTransition: { instanceId: number; sceneId: string } | null = null;
+  private pendingEndingTransition: { instanceId: number } | null = null;
+  private sceneVisitCount = 0;
 
   constructor(project: StoryProject) {
     this.project = project;
@@ -152,6 +157,32 @@ export class StoryRuntime {
   };
 
   readonly notifyTransitionCompleted = (instanceId: number): void => {
+    // 入场过渡完成：进入场景内容
+    const entry = this.pendingEntryTransition;
+    if (entry && entry.instanceId === instanceId) {
+      this.pendingEntryTransition = null;
+      this.state = { ...this.state, transition: null };
+      const entryScene = findScene(this.project, entry.sceneId);
+      if (entryScene) {
+        this.process(entryScene, 0);
+      }
+      return;
+    }
+    // 收尾过渡完成：剧情结束
+    const ending = this.pendingEndingTransition;
+    if (ending && ending.instanceId === instanceId) {
+      this.pendingEndingTransition = null;
+      this.commit({
+        ...withoutDialogueVoice(this.state),
+        status: "completed",
+        transition: null,
+        dialogue: null,
+        choices: [],
+        choicePrompt: null,
+      });
+      return;
+    }
+
     const pending = this.pendingSceneTransition;
     if (
       !pending ||
@@ -202,6 +233,27 @@ export class StoryRuntime {
 
   start(sceneId = this.project.entrySceneId): void {
     this.clearSceneTransitionTimer();
+    this.sceneVisitCount = 0;
+    const scene = findScene(this.project, sceneId);
+    if (scene?.entryTransition && scene.entryTransition.preset !== "none") {
+      this.transitionSequence += 1;
+      const entryTransition: RuntimeTransition = {
+        instanceId: this.transitionSequence,
+        preset: scene.entryTransition.preset,
+        durationMs: scene.entryTransition.durationMs,
+        holdMs: scene.entryTransition.holdMs ?? 0,
+        intensity: scene.entryTransition.intensity ?? 1,
+      };
+      this.pendingEntryTransition = { instanceId: entryTransition.instanceId, sceneId };
+      this.commit({
+        ...initialState,
+        status: "playing",
+        sceneId: scene.id,
+        sceneTitle: scene.title,
+        transition: entryTransition,
+      });
+      return;
+    }
     this.enterScene(sceneId);
   }
 
@@ -209,6 +261,17 @@ export class StoryRuntime {
     const scene = findScene(this.project, sceneId);
     if (!scene) {
       this.commit({ ...initialState, status: "error", error: `Scene not found: ${sceneId}` });
+      return;
+    }
+
+    this.sceneVisitCount += 1;
+    const sceneCount = getAllScenes(this.project).length;
+    if (this.sceneVisitCount > sceneCount * 2 + 1) {
+      this.commit({
+        ...initialState,
+        status: "error",
+        error: `场景连接成环，无法结束（${scene.title}）。请检查场景的下一场设置。`,
+      });
       return;
     }
 
@@ -307,9 +370,15 @@ export class StoryRuntime {
       nextState = { ...nextState, currentCueIndex: index + 1 };
     }
 
+    const targetCue = finalIndex >= 0 ? cues[finalIndex] : undefined;
+    const selectedIsDialogue = targetCue?.type === "dialogue.show";
+    const finalState = selectedIsDialogue
+      ? nextState
+      : { ...nextState, dialogue: null, choicePrompt: null, choices: [] };
+
     this.commit({
-      ...nextState,
-      status: nextState.dialogue || nextState.choices.length > 0 ? "waiting_user" : "paused",
+      ...finalState,
+      status: finalState.dialogue || finalState.choices.length > 0 ? "waiting_user" : "paused",
     });
   }
 
@@ -323,7 +392,7 @@ export class StoryRuntime {
       return;
     }
 
-    this.state = { ...withoutDialogueVoice(this.state), status: "playing", dialogue: null };
+    this.state = { ...withoutDialogueVoice(this.state), status: "playing" };
     this.process(scene, this.state.currentCueIndex);
   }
 
@@ -338,7 +407,7 @@ export class StoryRuntime {
     }
 
     if (option.targetSceneId) {
-      this.start(option.targetSceneId);
+      this.enterScene(option.targetSceneId);
       return;
     }
 
@@ -495,7 +564,29 @@ export class StoryRuntime {
         });
         return;
       }
-      this.start(scene.nextSceneId);
+      this.enterScene(scene.nextSceneId);
+      return;
+    }
+
+    const ending = scene.endingTransition;
+    if (ending && ending.preset !== "none") {
+      this.transitionSequence += 1;
+      const endingTransition: RuntimeTransition = {
+        instanceId: this.transitionSequence,
+        preset: ending.preset,
+        durationMs: ending.durationMs,
+        holdMs: ending.holdMs ?? 0,
+        intensity: ending.intensity ?? 1,
+      };
+      this.pendingEndingTransition = { instanceId: endingTransition.instanceId };
+      this.commit({
+        ...withoutDialogueVoice(nextState),
+        status: "playing",
+        dialogue: null,
+        choices: [],
+        choicePrompt: null,
+        transition: endingTransition,
+      });
       return;
     }
 
@@ -588,7 +679,7 @@ export class StoryRuntime {
             speaker: cue.speaker,
             subtitle: cue.subtitle,
             text: cue.text,
-            typingCps: cue.typingCps,
+            typingCps: resolveDialogueTypingCps(this.project),
           },
         });
         if (!cue.voiceAssetRef) {
@@ -672,6 +763,8 @@ export class StoryRuntime {
 
   private clearSceneTransitionTimer(): void {
     this.pendingSceneTransition = null;
+    this.pendingEntryTransition = null;
+    this.pendingEndingTransition = null;
     this.pendingStageAnimation = null;
     if (this.cueTimer !== null) {
       clearTimeout(this.cueTimer);

@@ -8,6 +8,8 @@ export const sampleProject: StoryProject = {
   createdAt: "2026-08-13T00:00:00Z",
   updatedAt: "2026-08-13T00:00:00Z",
   dialogueFontRef: "font/blueaka",
+  dialogueHoldMs: 2000,
+  dialogueTypingCps: 8,
   stage: { aspect: "16:9", width: 1920, height: 1080, backgroundFit: "cover" },
   dialogueBox: {
     heightPercent: 51,
@@ -49,7 +51,7 @@ export const sampleProject: StoryProject = {
               speaker: "Sakurako",
               subtitle: "Trinity General School",
               text: "老师，今天也请允许我陪你一起完成这份档案。",
-              typingCps: 36,
+              typingCps: 4,
               waitForAdvance: true,
             },
             {
@@ -59,7 +61,7 @@ export const sampleProject: StoryProject = {
               speaker: "老师",
               subtitle: "Schale",
               text: "当然。先从这一幕开始，把每一句话和每一个动作都安排好。",
-              typingCps: 36,
+              typingCps: 4,
               waitForAdvance: true,
             },
           ],
@@ -70,15 +72,6 @@ export const sampleProject: StoryProject = {
           kind: "direction",
           nextSceneId: "scene-003",
           cues: [
-            {
-              id: "cue-transition-002",
-              type: "transition.play",
-              atMs: 0,
-              preset: "archive-shutter",
-              durationMs: 1100,
-              holdMs: 120,
-              intensity: 1,
-            },
             {
               id: "cue-bg-002",
               type: "background.set",
@@ -101,7 +94,7 @@ export const sampleProject: StoryProject = {
               speaker: "老师",
               subtitle: "Schale",
               text: "当然。我们先把故事的骨架搭好，再一点点填入细节。",
-              typingCps: 36,
+              typingCps: 4,
               waitForAdvance: true,
             },
             {
@@ -111,7 +104,7 @@ export const sampleProject: StoryProject = {
               speaker: "Sakurako",
               subtitle: "Trinity General School",
               text: "我会记住的。剧本、舞台和最后的播放，都使用同一份故事。",
-              typingCps: 36,
+              typingCps: 4,
               waitForAdvance: true,
             },
           ],
@@ -121,15 +114,6 @@ export const sampleProject: StoryProject = {
           title: "新的约定",
           kind: "choice",
           cues: [
-            {
-              id: "cue-transition-003",
-              type: "transition.play",
-              atMs: 0,
-              preset: "halo-iris",
-              durationMs: 950,
-              holdMs: 80,
-              intensity: 1,
-            },
             {
               id: "cue-bg-003",
               type: "background.set",
@@ -152,7 +136,7 @@ export const sampleProject: StoryProject = {
               speaker: "Sakurako",
               subtitle: "Trinity General School",
               text: "那么，我们就从这一页正式开始吧。",
-              typingCps: 36,
+              typingCps: 4,
               waitForAdvance: true,
             },
             {

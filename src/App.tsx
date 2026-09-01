@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { EditorApp } from "./editor/EditorApp";
+import { HomeScreen } from "./home/HomeScreen";
 import { PlayerApp } from "./player/PlayerApp";
 
 export function isPlayerRoute(): boolean {
@@ -10,6 +11,7 @@ export function isPlayerRoute(): boolean {
 
 export function App() {
   const [player, setPlayer] = useState(isPlayerRoute);
+  const [enteredEditor, setEnteredEditor] = useState(false);
   useEffect(() => {
     const sync = () => setPlayer(isPlayerRoute());
     window.addEventListener("hashchange", sync);
@@ -19,5 +21,11 @@ export function App() {
       window.removeEventListener("popstate", sync);
     };
   }, []);
-  return player ? <PlayerApp /> : <EditorApp />;
+  if (player) {
+    return <PlayerApp />;
+  }
+  if (!enteredEditor) {
+    return <HomeScreen onOpened={() => setEnteredEditor(true)} />;
+  }
+  return <EditorApp onBackHome={() => setEnteredEditor(false)} />;
 }

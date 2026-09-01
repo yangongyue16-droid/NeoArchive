@@ -32,7 +32,7 @@ const cueLabels: Record<StoryCue["type"], string> = {
 function cueSummary(cue: StoryCue): string {
   switch (cue.type) {
     case "background.set":
-      return getUserAsset(cue.assetRef)?.name ?? cue.assetRef;
+      return cue.assetRef ? (getUserAsset(cue.assetRef)?.name ?? cue.assetRef) : "（未选择背景）";
     case "character.enter":
       return `${cue.characterRef} · ${cue.animation}`;
     case "character.update":

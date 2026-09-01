@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { loadDraftProject } from "../project-schema/projectFile";
 import { sampleProject } from "../project-schema/sampleProject";
-import { StoryRuntime, type RuntimeDialogue, type SaveSnapshot } from "../runtime/StoryRuntime";
+import { StoryRuntime, type RuntimeDialogue } from "../runtime/StoryRuntime";
 import { useAutoAdvance } from "../runtime/useAutoAdvance";
 import { useDialogueFont } from "../assets/useDialogueFont";
 import { StoryStage } from "./StoryStage";
@@ -19,14 +19,6 @@ function readDialogueIds(): Set<string> {
   } catch {
     return new Set();
   }
-}
-
-function isSaveSnapshot(value: unknown): value is SaveSnapshot {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const candidate = value as Partial<SaveSnapshot>;
-  return candidate.version === 1 && typeof candidate.projectId === "string" && !!candidate.state;
 }
 
 export function PlayerApp() {
@@ -49,7 +41,6 @@ export function PlayerApp() {
   const [currentWasRead, setCurrentWasRead] = useState(false);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const readIds = useMemo(readDialogueIds, []);
-  const quickSaveKey = `neoarchive:quick-save:${project.projectId}`;
 
   useEffect(() => {
     runtime.start();
@@ -107,6 +98,18 @@ export function PlayerApp() {
     }
   }, []);
 
+  // 播放结束（收尾过渡播完后）自动回到主界面
+  useEffect(() => {
+    if (playback.status !== "completed") {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void setExclusiveFullscreen(false);
+      window.location.hash = "";
+    }, 1200);
+    return () => window.clearTimeout(timer);
+  }, [playback.status, setExclusiveFullscreen]);
+
   useEffect(() => {
     void setExclusiveFullscreen(true);
     setChromeHidden(true);
@@ -114,6 +117,7 @@ export function PlayerApp() {
       if (event.key === "Escape") {
         event.preventDefault();
         void setExclusiveFullscreen(false);
+        window.location.hash = "";
         return;
       }
       if (event.key === "h" || event.key === "H") {
@@ -137,25 +141,6 @@ export function PlayerApp() {
     window.localStorage.setItem(readStorageKey, JSON.stringify([...readIds]));
   }, [autoAdvance, readIds, runtime]);
 
-  const quickSave = () => {
-    window.localStorage.setItem(quickSaveKey, JSON.stringify(runtime.createSaveSnapshot()));
-    setSaveNotice("已快速保存");
-  };
-
-  const quickLoad = () => {
-    try {
-      const raw = window.localStorage.getItem(quickSaveKey);
-      const snapshot: unknown = raw ? JSON.parse(raw) : null;
-      if (!isSaveSnapshot(snapshot)) {
-        throw new Error("还没有可读取的快速存档。");
-      }
-      runtime.restoreSaveSnapshot(snapshot);
-      setSaveNotice("已读取快速存档");
-    } catch (error) {
-      setSaveNotice(error instanceof Error ? error.message : "读取失败");
-    }
-  };
-
   return (
     <main
       className={`player-shell ${chromeHidden ? "is-chrome-hidden" : ""}`}
@@ -165,15 +150,6 @@ export function PlayerApp() {
       }}
     >
       <header className="player-toolbar">
-        <button
-          onClick={() => {
-            window.location.hash = "";
-            window.location.reload();
-          }}
-          type="button"
-        >
-          返回编辑器
-        </button>
         <div>
           <p className="eyebrow">GALGAME PLAYER</p>
           <strong>{playback.sceneTitle ?? project.title}</strong>
@@ -221,12 +197,6 @@ export function PlayerApp() {
         </button>
         <button onClick={() => setHistoryOpen(true)} type="button">
           对话历史
-        </button>
-        <button onClick={quickSave} type="button">
-          快速保存
-        </button>
-        <button onClick={quickLoad} type="button">
-          快速读取
         </button>
         <button onClick={() => setChromeHidden(true)} type="button">
           隐藏 UI

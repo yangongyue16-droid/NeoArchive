@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { loadDraftProject, persistDraftProject } from "../project-schema/projectFile";
+import { registerProject } from "../project-schema/projects";
 import { sampleProject } from "../project-schema/sampleProject";
 import {
   findScene,
@@ -47,6 +48,7 @@ export type EditableCuePatch = Partial<{
   voiceAssetRef?: string;
   voiceStartMs?: number;
   holdAfterMs?: number;
+  voiceHoldMs?: number;
   advanceWhen?: import("../project-schema/types").AdvanceWhen;
   volume: number;
   waitForAdvance: boolean;
@@ -71,6 +73,8 @@ type EditorState = {
     sceneId: string,
     patch: { nextSceneId?: string | null; exitTransition?: SceneExitTransition },
   ) => void;
+  setSceneEntry: (sceneId: string, transition?: SceneExitTransition | null) => void;
+  setSceneEnding: (sceneId: string, transition?: SceneExitTransition | null) => void;
   deleteScene: (sceneId: string) => void;
   addCue: (sceneId: string, type: AddableCueType) => void;
   updateCue: (sceneId: string, cueId: string, patch: EditableCuePatch, field: string) => void;
@@ -85,6 +89,8 @@ type EditorState = {
   ) => void;
   loadProject: (project: StoryProject) => void;
   markSaved: () => void;
+  setDialogueHoldMs: (dialogueHoldMs?: number) => void;
+  setDialogueTypingCps: (dialogueTypingCps?: number) => void;
   setDialogueFont: (dialogueFontRef?: string) => void;
   setStageSettings: (stage: Partial<StageSettings>) => void;
   setDialogueBox: (
@@ -95,6 +101,7 @@ type EditorState = {
       rule?: Partial<DialogueBoxSettings["rule"]>;
     },
   ) => void;
+  applyDialogueToAll: () => void;
   undo: () => void;
   redo: () => void;
   flushDraft: () => void;
@@ -120,6 +127,7 @@ function persistImmediately(project: StoryProject): void {
   }
   try {
     persistDraftProject(project);
+    registerProject(project);
   } catch (error) {
     console.warn("Unable to persist the local NeoArchive draft", error);
   }
@@ -164,7 +172,7 @@ function createCue(type: AddableCueType, atMs: number): StoryCue {
         id: createId("cue-background"),
         type,
         atMs,
-        assetRef: "background/classroom",
+        assetRef: "",
         transitionMs: 400,
       };
     case "character.enter":
@@ -186,7 +194,7 @@ function createCue(type: AddableCueType, atMs: number): StoryCue {
         speaker: "Sakurako",
         subtitle: "Trinity General School",
         text: "在这里输入下一句对白。",
-        typingCps: 36,
+        typingCps: 4,
         waitForAdvance: true,
       };
     case "audio.play":
@@ -301,6 +309,26 @@ export const useEditorStore = create<EditorState>((set) => ({
       }
       return commitProject(state, project, `scene:${sceneId}:exit`);
     }),
+  setSceneEntry: (sceneId, transition) =>
+    set((state) => {
+      const project = structuredClone(state.project);
+      const scene = findScene(project, sceneId);
+      if (!scene) {
+        return state;
+      }
+      scene.entryTransition = transition ?? undefined;
+      return commitProject(state, project, `scene:${sceneId}:entry`);
+    }),
+  setSceneEnding: (sceneId, transition) =>
+    set((state) => {
+      const project = structuredClone(state.project);
+      const scene = findScene(project, sceneId);
+      if (!scene) {
+        return state;
+      }
+      scene.endingTransition = transition ?? undefined;
+      return commitProject(state, project, `scene:${sceneId}:ending`);
+    }),
   deleteScene: (sceneId) =>
     set((state) => {
       const scenes = getAllScenes(state.project);
@@ -344,6 +372,10 @@ export const useEditorStore = create<EditorState>((set) => ({
       if (!scene) {
         return state;
       }
+      // 一个场景只允许一张背景：加新背景时替换掉场景里已有的 background.set。
+      if (type === "background.set") {
+        scene.cues = scene.cues.filter((candidate) => candidate.type !== "background.set");
+      }
       const nextAtMs = scene.cues.length * 500;
       const cue = createCue(type, nextAtMs);
       scene.cues.push(cue);
@@ -358,6 +390,12 @@ export const useEditorStore = create<EditorState>((set) => ({
       if (!cue) {
         return state;
       }
+      // 一个场景只允许一张背景：编辑背景时移除场景内其它 background.set。
+      if (cue.type === "background.set" && scene) {
+        scene.cues = scene.cues.filter(
+          (candidate) => candidate.type !== "background.set" || candidate.id === cueId,
+        );
+      }
       Object.assign(cue, patch);
       if (cue.type === "dialogue.show") {
         if ("voiceAssetRef" in patch && patch.voiceAssetRef === undefined) {
@@ -368,6 +406,9 @@ export const useEditorStore = create<EditorState>((set) => ({
         }
         if ("holdAfterMs" in patch && patch.holdAfterMs === undefined) {
           delete cue.holdAfterMs;
+        }
+        if ("voiceHoldMs" in patch && patch.voiceHoldMs === undefined) {
+          delete cue.voiceHoldMs;
         }
       }
       return commitProject(state, project, `cue:${cueId}:${field}`);
@@ -396,6 +437,12 @@ export const useEditorStore = create<EditorState>((set) => ({
       }
       const duplicate = structuredClone(source);
       duplicate.id = createId("cue");
+      if (duplicate.type === "dialogue.show") {
+        // 复制对白行时保留说话人/身份，清空正文与配音，方便连续录入同一人物台词。
+        duplicate.text = "";
+        delete duplicate.voiceAssetRef;
+        delete duplicate.voiceStartMs;
+      }
       const sourceIndex = scene.cues.findIndex((cue) => cue.id === cueId);
       scene.cues.splice(sourceIndex + 1, 0, duplicate);
       const committed = commitProject(state, project, null);
@@ -446,6 +493,30 @@ export const useEditorStore = create<EditorState>((set) => ({
       }
       return commitProject(state, { ...state.project, dialogueFontRef }, "project:dialogueFont");
     }),
+  setDialogueHoldMs: (dialogueHoldMs) =>
+    set((state) => {
+      const next = dialogueHoldMs === undefined ? undefined : Math.max(0, dialogueHoldMs);
+      if (state.project.dialogueHoldMs === next) {
+        return state;
+      }
+      return commitProject(
+        state,
+        { ...state.project, dialogueHoldMs: next },
+        "project:dialogueHoldMs",
+      );
+    }),
+  setDialogueTypingCps: (dialogueTypingCps) =>
+    set((state) => {
+      const next = dialogueTypingCps === undefined ? undefined : Math.max(1, dialogueTypingCps);
+      if (state.project.dialogueTypingCps === next) {
+        return state;
+      }
+      return commitProject(
+        state,
+        { ...state.project, dialogueTypingCps: next },
+        "project:dialogueTypingCps",
+      );
+    }),
   setStageSettings: (stage) =>
     set((state) => {
       const next = normalizeStageSettings({ ...state.project.stage, ...stage });
@@ -472,6 +543,21 @@ export const useEditorStore = create<EditorState>((set) => ({
         rule: { ...current.rule, ...dialogueBox.rule },
       });
       return commitProject(state, { ...state.project, dialogueBox: next }, "project:dialogueBox");
+    }),
+  applyDialogueToAll: () =>
+    set((state) => {
+      const project = structuredClone(state.project);
+      const holdMs = project.dialogueHoldMs ?? 2000;
+      for (const chapter of project.chapters) {
+        for (const scene of chapter.scenes) {
+          for (const cue of scene.cues) {
+            if (cue.type === "dialogue.show") {
+              cue.holdAfterMs = holdMs;
+            }
+          }
+        }
+      }
+      return commitProject(state, project, "project:applyAll");
     }),
   flushDraft: () => {
     persistImmediately(useEditorStore.getState().project);
