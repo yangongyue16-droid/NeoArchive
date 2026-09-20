@@ -1,3 +1,5 @@
+import { backgroundOptions } from "../assets/catalog";
+import { cueLabels } from "./cueLabels";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { getUserAsset, getUserAssetSnapshot, subscribeUserAssets } from "../assets/userAssets";
 import type { Scene, StoryCue } from "../project-schema/types";
@@ -16,31 +18,22 @@ type ScriptTimelineProps = {
   onUpdateCue: (cueId: string, patch: EditableCuePatch, field: string) => void;
 };
 
-const cueLabels: Record<StoryCue["type"], string> = {
-  "audio.play": "音频",
-  "audio.stop": "停止音频",
-  "background.set": "背景",
-  "character.enter": "角色入场",
-  "character.exit": "角色退场",
-  "character.update": "角色更新",
-  "choice.show": "选择",
-  "dialogue.show": "对白",
-  "transition.play": "过场",
-  wait: "等待",
-};
-
 function cueSummary(cue: StoryCue): string {
   switch (cue.type) {
     case "background.set":
-      return cue.assetRef ? (getUserAsset(cue.assetRef)?.name ?? cue.assetRef) : "（未选择背景）";
+      return cue.assetRef
+        ? (getUserAsset(cue.assetRef)?.name ??
+            backgroundOptions.find((option) => option.value === cue.assetRef)?.label ??
+            cue.assetRef)
+        : "（未选择背景）";
     case "character.enter":
-      return `${cue.characterRef} · ${cue.animation}`;
+      return getUserAsset(cue.characterRef)?.name ?? `${cue.characterRef} · ${cue.animation}`;
     case "character.update":
       return `${cue.characterRef}${cue.animation ? ` · ${cue.animation}` : ""}`;
     case "character.exit":
       return cue.characterRef;
     case "dialogue.show":
-      return `${cue.speaker}：${cue.text}`;
+      return cue.text ? `${cue.speaker || "旁白"}：${cue.text}` : "（未填写对白）";
     case "audio.play":
       return `${cue.channel.toUpperCase()} · ${getUserAsset(cue.assetRef)?.name ?? cue.assetRef}`;
     case "audio.stop":
@@ -105,8 +98,8 @@ export function ScriptTimeline({
     <section className="script-timeline" aria-label="剧本行时间线">
       <div className="script-timeline-heading">
         <div>
-          <strong>剧本行 Timeline</strong>
-          <span>{cues.length} 个剧本模块 · 拖拽编排，点击预览</span>
+          <strong>剧本时间线</strong>
+          <span>{cues.length} 个模块</span>
         </div>
         <div className="cue-add-actions">
           {addActions.map((action) => (
@@ -117,6 +110,18 @@ export function ScriptTimeline({
         </div>
       </div>
       <div className="script-cue-list">
+        {cues.length === 0 ? (
+          <div className="timeline-empty">
+            <strong>暂无剧本行</strong>
+            <button
+              className="button button-secondary"
+              onClick={() => onAdd("dialogue.show")}
+              type="button"
+            >
+              添加对白
+            </button>
+          </div>
+        ) : null}
         {cues.map((cue, index) => {
           const isDialogue = cue.type === "dialogue.show";
           const voiceOpen = isDialogue ? expandedVoiceIds.has(cue.id) : false;
@@ -153,6 +158,10 @@ export function ScriptTimeline({
                     edge: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after",
                   });
                 }}
+                onPointerCancel={() => {
+                  setDraggedCueId(null);
+                  updateDropTarget(null);
+                }}
                 onPointerUp={(event) => {
                   if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                     event.currentTarget.releasePointerCapture(event.pointerId);
@@ -164,7 +173,6 @@ export function ScriptTimeline({
                   setDraggedCueId(null);
                   updateDropTarget(null);
                 }}
-                title="按住拖拽编排"
                 type="button"
               >
                 <span />
@@ -178,7 +186,12 @@ export function ScriptTimeline({
                   onToggle={() => toggleVoice(cue.id)}
                 />
               ) : null}
-              <button className="cue-main" onClick={() => onSelect(cue.id)} type="button">
+              <button
+                aria-pressed={cue.id === selectedCueId}
+                className="cue-main"
+                onClick={() => onSelect(cue.id)}
+                type="button"
+              >
                 <span className={`cue-kind cue-kind-${cue.type.split(".")[0]}`}>
                   {cueLabels[cue.type]}
                 </span>

@@ -1,0 +1,8 @@
+---
+description: NeoArchive 界面文案遵守零冗余规则。
+globs: "src/**/*.{tsx,css}"
+alwaysApply: true
+---
+
+编辑或审查产品界面前读取 `.agents/skills/no-redundant-ui-copy/SKILL.md` 并执行。
+该文件是文案规则的唯一来源，不在本规则中维护副本。

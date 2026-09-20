@@ -188,10 +188,9 @@ function SceneTransitionEditor({
             type="number"
             value={durationMs}
           />
-          <small>过渡动画播多久。</small>
         </label>
         <label>
-          <span>停留（ms）</span>
+          <span>遮挡停留（ms）</span>
           <input
             disabled={disabled}
             min={0}
@@ -209,7 +208,6 @@ function SceneTransitionEditor({
             type="number"
             value={holdMs}
           />
-          <small>画面布满后再停多久。</small>
         </label>
       </div>
     </>
@@ -261,6 +259,7 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projects, setProjects] = useState<ProjectMeta[]>(() => listProjects());
   const [workMode, setWorkMode] = useState<WorkMode>("script");
+  const [compactPanel, setCompactPanel] = useState<"scene" | "preview" | "inspector">("preview");
   const [exclusiveFullscreen, setExclusiveFullscreen] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() =>
     window.localStorage.getItem("neoarchive-theme") === "day" ? "day" : "night",
@@ -486,32 +485,26 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
       <header className="topbar">
         <div className="brand-mark" aria-hidden="true" />
         <div>
-          <p className="eyebrow">GALGAME EDITOR</p>
-          <h1>NeoArchive</h1>
+          <h1 className="editor-project-title" title={project.title}>
+            {project.title}
+          </h1>
         </div>
         <nav className="workspace-tabs" aria-label="编辑工作区">
           <button
+            aria-pressed={workMode === "script"}
             className={workMode === "script" ? "is-active" : ""}
             onClick={() => setWorkMode("script")}
             type="button"
           >
-            幕前
+            剧本编辑
           </button>
           <button
+            aria-pressed={workMode === "stage"}
             className={workMode === "stage" ? "is-active" : ""}
             onClick={() => setWorkMode("stage")}
             type="button"
           >
-            幕后
-          </button>
-          <button disabled type="button">
-            流程
-          </button>
-          <button disabled type="button">
-            素材
-          </button>
-          <button disabled type="button">
-            发布
+            舞台布局
           </button>
         </nav>
         <div className="topbar-actions">
@@ -541,45 +534,55 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
           >
             重做
           </button>
-          <button
-            className="history-button"
-            disabled={projectBusy || !backendHealth}
-            onClick={() => void handleOpenFromBackend()}
-            type="button"
+          <details
+            className="editor-project-menu"
+            onClick={(event) => {
+              if ((event.target as HTMLElement).closest("button")) event.currentTarget.open = false;
+            }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                event.currentTarget.open = false;
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.currentTarget.open = false;
+                event.currentTarget.querySelector("summary")?.focus();
+              }
+            }}
           >
-            打开
-          </button>
+            <summary>工程</summary>
+            <div className="editor-menu-items">
+              <button
+                disabled={projectBusy || !backendHealth}
+                onClick={() => void handleOpenFromBackend()}
+                type="button"
+              >
+                从本地服务打开
+              </button>
+              <button onClick={() => fileInputRef.current?.click()} type="button">
+                导入项目文件
+              </button>
+              <button onClick={() => setSettingsOpen(true)} type="button">
+                工程设置
+              </button>
+              <button
+                onClick={() => {
+                  setProjects(listProjects());
+                  setProjectsOpen(true);
+                }}
+                type="button"
+              >
+                打开工程库
+              </button>
+            </div>
+          </details>
           <button
-            className="history-button"
-            onClick={() => fileInputRef.current?.click()}
-            type="button"
-          >
-            导入
-          </button>
-          <button
-            className="history-button"
+            className="button button-secondary"
             disabled={projectBusy}
             onClick={() => void handleSave()}
             type="button"
           >
-            保存
-          </button>
-          <button
-            className="history-button"
-            onClick={() => setSettingsOpen((current) => !current)}
-            type="button"
-          >
-            设置
-          </button>
-          <button
-            className="history-button"
-            onClick={() => {
-              setProjects(listProjects());
-              setProjectsOpen(true);
-            }}
-            type="button"
-          >
-            工程库
+            {projectBusy ? "处理中…" : "保存项目"}
           </button>
           <input
             accept=".json,.neoarchive"
@@ -621,12 +624,8 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
               退出全屏
             </button>
           ) : null}
-          <span className={`status-pill ${backendHealth ? "is-online" : ""}`}>
-            {dirty
-              ? "自动草稿 · 未保存"
-              : backendHealth
-                ? `Python · ${backendHealth.database}`
-                : "Web 原型"}
+          <span className={`status-pill ${backendHealth ? "is-online" : ""}`} role="status">
+            {dirty ? "未保存" : backendHealth ? "已连接" : "本地"}
           </span>
           <button
             className="button button-primary"
@@ -642,7 +641,12 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
       </header>
 
       {notice ? (
-        <button className="editor-notice" onClick={() => setNotice(null)} type="button">
+        <button
+          role="status"
+          className="editor-notice"
+          onClick={() => setNotice(null)}
+          type="button"
+        >
           {notice}
         </button>
       ) : null}
@@ -652,7 +656,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
           <section className="settings-panel">
             <header>
               <div>
-                <p className="eyebrow">PROJECT SETTINGS</p>
                 <h2>工程设置</h2>
               </div>
               <button onClick={() => setSettingsOpen(false)} type="button">
@@ -669,7 +672,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                 step={1}
                 value={project.dialogueTypingCps ?? null}
               />
-              <small>所有对白统一按这个速度逐字出现；留空用默认 8。</small>
             </label>
             <label>
               <span>全局默认停留（秒）</span>
@@ -681,7 +683,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                 step={0.25}
                 value={project.dialogueHoldMs === undefined ? null : project.dialogueHoldMs / 1000}
               />
-              <small>无配音句子播完停这么久；单句可在幕前单独覆盖。</small>
             </label>
             <label>
               <span>配音播完停留（秒）</span>
@@ -695,7 +696,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                 step={0.25}
                 value={project.voiceHoldMs === undefined ? null : project.voiceHoldMs / 1000}
               />
-              <small>有配音句子播完后停这么久；留空默认 1 秒，单句可在幕前覆盖。</small>
             </label>
             <label>
               <span>开场画面淡入（秒）</span>
@@ -707,7 +707,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                 step={0.1}
                 value={project.openingFadeMs === undefined ? null : project.openingFadeMs / 1000}
               />
-              <small>播放成品第一次出现画面时淡入这么久；留空默认 1.2 秒，填 0 关闭。</small>
             </label>
             <div className="settings-section">
               <strong>对话框排版</strong>
@@ -757,7 +756,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
           <section className="settings-panel">
             <header>
               <div>
-                <p className="eyebrow">BOOKMARKS</p>
                 <h2>存档</h2>
               </div>
               <button onClick={() => setBookmarksOpen(false)} type="button">
@@ -769,7 +767,7 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
             </button>
             <div className="bookmark-list">
               {bookmarks.length === 0 ? (
-                <p className="empty-saves">还没有存档。选中一个场景后点「为当前场景存书签」。</p>
+                <p className="empty-saves">暂无书签</p>
               ) : (
                 bookmarks.map((bookmark) => {
                   const scene = findScene(project, bookmark.sceneId);
@@ -805,7 +803,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
           <section className="settings-panel project-panel">
             <header>
               <div>
-                <p className="eyebrow">PROJECT LIBRARY</p>
                 <h2>工程库</h2>
               </div>
               <button onClick={() => setProjectsOpen(false)} type="button">
@@ -817,9 +814,7 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
             </button>
             <div className="bookmark-list project-list">
               {projects.length === 0 ? (
-                <p className="empty-saves">
-                  还没有工程。点「新建工程」创建，或从顶栏「导入」打开 .neoarchive.json。
-                </p>
+                <p className="empty-saves">暂无工程</p>
               ) : (
                 projects.map((meta) => (
                   <article className="project-row" key={meta.projectId}>
@@ -849,7 +844,25 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
         </div>
       ) : null}
 
-      <section className="workspace">
+      <nav className="compact-workspace-tabs" aria-label="编辑面板">
+        {(
+          [
+            { id: "scene", label: "场景" },
+            { id: "preview", label: "预览与剧本" },
+            { id: "inspector", label: "属性" },
+          ] as const
+        ).map((panel) => (
+          <button
+            key={panel.id}
+            type="button"
+            aria-pressed={compactPanel === panel.id}
+            onClick={() => setCompactPanel(panel.id)}
+          >
+            {panel.label}
+          </button>
+        ))}
+      </nav>
+      <section className="workspace" data-compact-panel={compactPanel}>
         <aside className="panel scene-panel" aria-label="场景列表">
           <div className="panel-heading">
             <div>
@@ -862,7 +875,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                 onClick={() => setBookmarksOpen(true)}
                 type="button"
                 aria-label="存档"
-                title="存档（书签）"
               >
                 书签
               </button>
@@ -876,192 +888,10 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
               </button>
             </div>
           </div>
-          <div className="scene-editor">
-            <label>
-              <span>场景名称</span>
-              <input
-                onChange={(event) => renameScene(activeScene.id, event.currentTarget.value)}
-                value={activeScene.title}
-              />
-            </label>
-            <label>
-              <span>AUTO 每句停留（秒）</span>
-              <input
-                min={0.25}
-                onChange={(event) => {
-                  const rawValue = event.currentTarget.value;
-                  if (rawValue === "") {
-                    setSceneAutoAdvance(activeScene.id, undefined);
-                    return;
-                  }
-                  const seconds = Number(rawValue);
-                  setSceneAutoAdvance(
-                    activeScene.id,
-                    Number.isFinite(seconds)
-                      ? Math.max(250, Math.round(seconds * 1000))
-                      : undefined,
-                  );
-                }}
-                placeholder="自适应"
-                step={0.25}
-                type="number"
-                value={
-                  activeScene.autoAdvanceMs === undefined ? "" : activeScene.autoAdvanceMs / 1000
-                }
-              />
-              <small>本场默认。单句可在幕后覆盖。成品和「播放场景」共用。</small>
-            </label>
-            <label>
-              <span>下一场</span>
-              <select
-                onChange={(event) =>
-                  setSceneExit(activeScene.id, {
-                    nextSceneId: event.currentTarget.value || null,
-                  })
-                }
-                value={activeScene.nextSceneId ?? ""}
-              >
-                <option value="">结束</option>
-                {getAllScenes(project)
-                  .filter((scene) => scene.id !== activeScene.id)
-                  .map((scene) => (
-                    <option key={scene.id} value={scene.id}>
-                      {scene.title}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            {activeScene.nextSceneId ? (
-              <SceneTransitionEditor
-                label="切到下一场"
-                onChange={(transition) =>
-                  setSceneExit(activeScene.id, { exitTransition: transition })
-                }
-                value={activeScene.exitTransition}
-              />
-            ) : (
-              <SceneTransitionEditor
-                label="收尾过渡"
-                onChange={(transition) => setSceneEnding(activeScene.id, transition)}
-                value={activeScene.endingTransition}
-              />
-            )}
-            {activeScene.id === project.entrySceneId ? (
-              <SceneTransitionEditor
-                label="入场过渡"
-                onChange={(transition) => setSceneEntry(activeScene.id, transition)}
-                value={activeScene.entryTransition}
-              />
-            ) : null}
-            {workMode === "script" ? (
-              <button
-                className="danger-button"
-                disabled={getAllScenes(project).length <= 1}
-                onClick={() => deleteScene(activeScene.id)}
-                type="button"
-              >
-                删除当前场景
-              </button>
-            ) : (
-              <>
-                <label>
-                  <span>剧情字体</span>
-                  <select
-                    onChange={(event) => {
-                      const value = event.currentTarget.value;
-                      if (value !== "__custom__") {
-                        setDialogueFont(value);
-                      }
-                    }}
-                    value={
-                      !project.dialogueFontRef ||
-                      project.dialogueFontRef === builtInDialogueFont.value
-                        ? builtInDialogueFont.value
-                        : "__custom__"
-                    }
-                  >
-                    <option value={builtInDialogueFont.value}>{builtInDialogueFont.label}</option>
-                    {customFont ? (
-                      <option value="__custom__">本地字体 · {customFont.name}</option>
-                    ) : null}
-                  </select>
-                </label>
-                <LocalAssetPicker
-                  accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
-                  allowed={["font"]}
-                  buttonLabel="选择本地字体"
-                  onImported={(assetRef) => setDialogueFont(assetRef)}
-                />
-                <label>
-                  <span>画面比例</span>
-                  <select
-                    onChange={(event) =>
-                      setStageSettings({
-                        aspect: event.currentTarget.value as (typeof stagePresets)[number]["value"],
-                      })
-                    }
-                    value={stage.aspect}
-                  >
-                    {stagePresets.map((preset) => (
-                      <option key={preset.value} value={preset.value}>
-                        {preset.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div className="field-row stage-size-fields">
-                  <label>
-                    <span>宽</span>
-                    <input
-                      min={320}
-                      onChange={(event) =>
-                        setStageSettings({
-                          aspect: "custom",
-                          width: Number(event.currentTarget.value),
-                        })
-                      }
-                      type="number"
-                      value={stage.width}
-                    />
-                  </label>
-                  <label>
-                    <span>高</span>
-                    <input
-                      min={240}
-                      onChange={(event) =>
-                        setStageSettings({
-                          aspect: "custom",
-                          height: Number(event.currentTarget.value),
-                        })
-                      }
-                      type="number"
-                      value={stage.height}
-                    />
-                  </label>
-                </div>
-                <label>
-                  <span>背景填充</span>
-                  <select
-                    onChange={(event) =>
-                      setStageSettings({
-                        backgroundFit: event.currentTarget.value as BackgroundFit,
-                      })
-                    }
-                    value={stage.backgroundFit ?? "cover"}
-                  >
-                    {backgroundFitOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
-          </div>
-          <nav className="scene-list">
+          <nav className="scene-list" aria-label="选择场景">
             {getAllScenes(project).map((scene, index) => (
               <button
+                aria-current={scene.id === activeScene.id ? "true" : undefined}
                 className={`scene-item ${scene.id === activeScene.id ? "is-active" : ""}`}
                 key={scene.id}
                 onClick={() => selectScene(scene.id)}
@@ -1070,23 +900,218 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                 <span className="scene-index">{String(index + 1).padStart(2, "0")}</span>
                 <span className="scene-copy">
                   <strong>{scene.title}</strong>
-                  <small>{scene.cues.length} cues</small>
+                  <small>{scene.cues.length} 个模块</small>
                 </span>
               </button>
             ))}
           </nav>
+          <details className="scene-settings">
+            <summary>场景设置 · {activeScene.title}</summary>
+            <div className="scene-editor">
+              <label>
+                <span>场景名称</span>
+                <input
+                  onChange={(event) => renameScene(activeScene.id, event.currentTarget.value)}
+                  value={activeScene.title}
+                />
+              </label>
+              <label>
+                <span>AUTO 每句停留（秒）</span>
+                <input
+                  min={0.25}
+                  onChange={(event) => {
+                    const rawValue = event.currentTarget.value;
+                    if (rawValue === "") {
+                      setSceneAutoAdvance(activeScene.id, undefined);
+                      return;
+                    }
+                    const seconds = Number(rawValue);
+                    setSceneAutoAdvance(
+                      activeScene.id,
+                      Number.isFinite(seconds)
+                        ? Math.max(250, Math.round(seconds * 1000))
+                        : undefined,
+                    );
+                  }}
+                  placeholder="自适应"
+                  step={0.25}
+                  type="number"
+                  value={
+                    activeScene.autoAdvanceMs === undefined ? "" : activeScene.autoAdvanceMs / 1000
+                  }
+                />
+              </label>
+              <label>
+                <span>下一场</span>
+                <select
+                  onChange={(event) =>
+                    setSceneExit(activeScene.id, {
+                      nextSceneId: event.currentTarget.value || null,
+                    })
+                  }
+                  value={activeScene.nextSceneId ?? ""}
+                >
+                  <option value="">结束</option>
+                  {getAllScenes(project)
+                    .filter((scene) => scene.id !== activeScene.id)
+                    .map((scene) => (
+                      <option key={scene.id} value={scene.id}>
+                        {scene.title}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              {activeScene.nextSceneId ? (
+                <SceneTransitionEditor
+                  label="切到下一场"
+                  onChange={(transition) =>
+                    setSceneExit(activeScene.id, { exitTransition: transition })
+                  }
+                  value={activeScene.exitTransition}
+                />
+              ) : (
+                <SceneTransitionEditor
+                  label="收尾过渡"
+                  onChange={(transition) => setSceneEnding(activeScene.id, transition)}
+                  value={activeScene.endingTransition}
+                />
+              )}
+              {activeScene.id === project.entrySceneId ? (
+                <SceneTransitionEditor
+                  label="入场过渡"
+                  onChange={(transition) => setSceneEntry(activeScene.id, transition)}
+                  value={activeScene.entryTransition}
+                />
+              ) : null}
+              {workMode === "script" ? (
+                <button
+                  className="danger-button"
+                  disabled={getAllScenes(project).length <= 1}
+                  onClick={() => deleteScene(activeScene.id)}
+                  type="button"
+                >
+                  删除当前场景
+                </button>
+              ) : (
+                <>
+                  <label>
+                    <span>剧情字体</span>
+                    <select
+                      onChange={(event) => {
+                        const value = event.currentTarget.value;
+                        if (value !== "__custom__") {
+                          setDialogueFont(value);
+                        }
+                      }}
+                      value={
+                        !project.dialogueFontRef ||
+                        project.dialogueFontRef === builtInDialogueFont.value
+                          ? builtInDialogueFont.value
+                          : "__custom__"
+                      }
+                    >
+                      <option value={builtInDialogueFont.value}>{builtInDialogueFont.label}</option>
+                      {customFont ? (
+                        <option value="__custom__">本地字体 · {customFont.name}</option>
+                      ) : null}
+                    </select>
+                  </label>
+                  <LocalAssetPicker
+                    accept=".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
+                    allowed={["font"]}
+                    buttonLabel="选择本地字体"
+                    onImported={(assetRef) => setDialogueFont(assetRef)}
+                  />
+                  <label>
+                    <span>画面比例</span>
+                    <select
+                      onChange={(event) =>
+                        setStageSettings({
+                          aspect: event.currentTarget
+                            .value as (typeof stagePresets)[number]["value"],
+                        })
+                      }
+                      value={stage.aspect}
+                    >
+                      {stagePresets.map((preset) => (
+                        <option key={preset.value} value={preset.value}>
+                          {preset.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="field-row stage-size-fields">
+                    <label>
+                      <span>宽</span>
+                      <input
+                        min={320}
+                        onChange={(event) =>
+                          setStageSettings({
+                            aspect: "custom",
+                            width: Number(event.currentTarget.value),
+                          })
+                        }
+                        type="number"
+                        value={stage.width}
+                      />
+                    </label>
+                    <label>
+                      <span>高</span>
+                      <input
+                        min={240}
+                        onChange={(event) =>
+                          setStageSettings({
+                            aspect: "custom",
+                            height: Number(event.currentTarget.value),
+                          })
+                        }
+                        type="number"
+                        value={stage.height}
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    <span>背景填充</span>
+                    <select
+                      onChange={(event) =>
+                        setStageSettings({
+                          backgroundFit: event.currentTarget.value as BackgroundFit,
+                        })
+                      }
+                      value={stage.backgroundFit ?? "cover"}
+                    >
+                      {backgroundFitOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </>
+              )}
+            </div>
+          </details>
         </aside>
 
         <section
           className="stage-column"
-          style={{ "--preview-h": `${previewHeightPct}%` } as React.CSSProperties}
+          style={
+            {
+              "--preview-track": `${previewHeightPct}fr`,
+              "--timeline-track": `${100 - previewHeightPct}fr`,
+            } as React.CSSProperties
+          }
         >
           <div className="stage-toolbar">
             <span>
-              {stageSummary(stage)} · {playback.status} · {selectedCue?.type ?? "empty"}
+              {stageSummary(stage)} ·{" "}
+              {playback.status === "playing"
+                ? "播放中"
+                : playback.status === "completed"
+                  ? "播放结束"
+                  : "编辑预览"}
             </span>
             <div className="toolbar-group" aria-label="幕后工具">
-              <span className="live-preview-badge">LIVE</span>
               <button
                 onClick={() => previewCue(activeScene.id, selectedCue?.id, true)}
                 type="button"
@@ -1120,6 +1145,27 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
 
           <div
             aria-label="调整预览区高度"
+            role="separator"
+            aria-orientation="horizontal"
+            aria-valuemin={30}
+            aria-valuemax={90}
+            aria-valuenow={Math.round(previewHeightPct)}
+            tabIndex={0}
+            onKeyDown={(event) => {
+              if (!["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return;
+              event.preventDefault();
+              const next =
+                event.key === "Home"
+                  ? 30
+                  : event.key === "End"
+                    ? 90
+                    : Math.min(
+                        90,
+                        Math.max(30, previewHeightPct + (event.key === "ArrowUp" ? -5 : 5)),
+                      );
+              setPreviewHeightPct(next);
+              window.localStorage.setItem("neoarchive-preview-height", String(next));
+            }}
             className="stage-resize-handle"
             onPointerDown={(event) => {
               event.preventDefault();
@@ -1165,7 +1211,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
             <>
               <div className="panel-heading inspector-heading">
                 <div>
-                  <p className="eyebrow">BACKSTAGE · DIALOGUE</p>
                   <h2>对话框</h2>
                 </div>
               </div>
@@ -1241,7 +1286,6 @@ export function EditorApp({ onBackHome }: { onBackHome?: () => void }) {
                       selectedCue.holdAfterMs === undefined ? null : selectedCue.holdAfterMs / 1000
                     }
                   />
-                  <small>留空用场景 AUTO。成品和「播放场景」共用这个数。</small>
                 </label>
               ) : (
                 <p className="voice-error">先在时间线选一句对白，再设播完停留。</p>

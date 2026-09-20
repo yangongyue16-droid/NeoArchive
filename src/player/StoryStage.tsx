@@ -1,3 +1,4 @@
+import { ImageCharacter } from "./ImageCharacter";
 import {
   lazy,
   Suspense,
@@ -8,7 +9,12 @@ import {
   type CSSProperties,
   type PointerEvent,
 } from "react";
-import { resolveAudio, resolveBackgroundMedia, resolveCharacter } from "../assets/catalog";
+import {
+  resolveAudio,
+  resolveBackgroundMedia,
+  resolveCharacter,
+  resolveCharacterImage,
+} from "../assets/catalog";
 import { getUserAssetSnapshot, subscribeUserAssets } from "../assets/userAssets";
 import { dialogueBoxCssVars, normalizeDialogueBox, stageCssVars } from "../project-schema/stage";
 import type {
@@ -18,6 +24,12 @@ import type {
 } from "../project-schema/types";
 import type { PlaybackState, RuntimeAudio } from "../runtime/StoryRuntime";
 import { SpineCharacter } from "../SpineCharacter";
+
+const BackgroundEffectLayer = lazy(() =>
+  import("../effects/BackgroundEffectLayer").then((module) => ({
+    default: module.BackgroundEffectLayer,
+  })),
+);
 
 const StageTransition = lazy(() =>
   import("./StageTransition").then(({ StageTransition: component }) => ({ default: component })),
@@ -328,11 +340,22 @@ export function StoryStage({
           style={{ animationDuration: `${playback.backgroundTransitionMs}ms` }}
         />
       ) : null}
+      {background && playback.backgroundEffect ? (
+        <Suspense fallback={null}>
+          <BackgroundEffectLayer
+            settings={playback.backgroundEffect}
+            sourceKey={playback.backgroundInstanceId}
+            stageRef={stageRef}
+            fit={stage?.backgroundFit ?? "cover"}
+          />
+        </Suspense>
+      ) : null}
       {playback.characters.map((character) => {
         const skeletonUrl = resolveCharacter(character.characterRef);
         return skeletonUrl ? (
           <SpineCharacter
             animationName={character.animation}
+            effect={character.effect}
             enterDurationMs={character.enterDurationMs}
             onEnterComplete={() => onCharacterEnterComplete?.(character.entryInstanceId)}
             key={`${character.characterRef}:${character.entryInstanceId}`}
@@ -340,6 +363,17 @@ export function StoryStage({
             positionYPercent={character.transform.y * 100}
             scalePercent={character.transform.scale * 100}
             skeletonUrl={skeletonUrl}
+          />
+        ) : resolveCharacterImage(character.characterRef) ? (
+          <ImageCharacter
+            key={`${character.characterRef}:${character.entryInstanceId}`}
+            url={resolveCharacterImage(character.characterRef)!}
+            effect={character.effect}
+            x={character.transform.x}
+            y={character.transform.y}
+            scale={character.transform.scale}
+            enterDurationMs={character.enterDurationMs}
+            onEnterComplete={() => onCharacterEnterComplete?.(character.entryInstanceId)}
           />
         ) : null;
       })}

@@ -1,7 +1,21 @@
-import { useEffect, useState } from "react";
-import { EditorApp } from "./editor/EditorApp";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { HomeScreen } from "./home/HomeScreen";
-import { PlayerApp } from "./player/PlayerApp";
+
+const EditorApp = lazy(() =>
+  import("./editor/EditorApp").then((module) => ({ default: module.EditorApp })),
+);
+const PlayerApp = lazy(() =>
+  import("./player/PlayerApp").then((module) => ({ default: module.PlayerApp })),
+);
+
+function LoadingWorkspace() {
+  return (
+    <div className="workspace-loading" role="status">
+      <div className="brand-mark" aria-hidden="true" />
+      <p>正在准备创作空间…</p>
+    </div>
+  );
+}
 
 export function isPlayerRoute(): boolean {
   return (
@@ -12,7 +26,6 @@ export function isPlayerRoute(): boolean {
 export function App() {
   const [player, setPlayer] = useState(isPlayerRoute);
   const [enteredEditor, setEnteredEditor] = useState(false);
-  const [cameFromEditor, setCameFromEditor] = useState(false);
   useEffect(() => {
     const sync = () => setPlayer(isPlayerRoute());
     window.addEventListener("hashchange", sync);
@@ -23,25 +36,28 @@ export function App() {
     };
   }, []);
   if (player) {
-    return <PlayerApp />;
+    return (
+      <Suspense fallback={<LoadingWorkspace />}>
+        <PlayerApp />
+      </Suspense>
+    );
   }
   if (!enteredEditor) {
     return (
       <HomeScreen
-        animateFromEditor={cameFromEditor}
         onOpened={() => {
-          setCameFromEditor(false);
           setEnteredEditor(true);
         }}
       />
     );
   }
   return (
-    <EditorApp
-      onBackHome={() => {
-        setCameFromEditor(true);
-        setEnteredEditor(false);
-      }}
-    />
+    <Suspense fallback={<LoadingWorkspace />}>
+      <EditorApp
+        onBackHome={() => {
+          setEnteredEditor(false);
+        }}
+      />
+    </Suspense>
   );
 }

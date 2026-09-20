@@ -363,6 +363,28 @@
   },
   "components": {
     "schemas": {
+      "AdvanceWhen": {
+        "properties": {
+          "text": {
+            "type": "boolean",
+            "title": "Text",
+            "default": true
+          },
+          "voice": {
+            "type": "boolean",
+            "title": "Voice",
+            "default": false
+          },
+          "backgroundVideo": {
+            "type": "boolean",
+            "title": "Backgroundvideo",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AdvanceWhen"
+      },
       "AssetResponse": {
         "properties": {
           "id": {
@@ -545,6 +567,46 @@
         ],
         "title": "AudioStopCue"
       },
+      "BackgroundEffect": {
+        "properties": {
+          "coverDialogue": {
+            "type": "boolean",
+            "title": "Coverdialogue",
+            "default": false
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "glitch",
+              "vhs",
+              "droplets",
+              "frost",
+              "shatter"
+            ],
+            "title": "Kind"
+          },
+          "intensity": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Intensity",
+            "default": 1
+          },
+          "speed": {
+            "type": "number",
+            "maximum": 3.0,
+            "minimum": 0.25,
+            "title": "Speed",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "BackgroundEffect"
+      },
       "BackgroundSetCue": {
         "properties": {
           "id": {
@@ -562,6 +624,16 @@
             "const": "background.set",
             "title": "Type"
           },
+          "effect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BackgroundEffect"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "assetRef": {
             "type": "string",
             "title": "Assetref"
@@ -577,6 +649,17 @@
               }
             ],
             "title": "Transitionms"
+          },
+          "waitForMediaEnd": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waitformediaend"
           }
         },
         "additionalProperties": false,
@@ -616,6 +699,71 @@
         ],
         "title": "Chapter"
       },
+      "CharacterEffect": {
+        "properties": {
+          "halo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HaloGlow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "haloMask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HaloMask"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "glow",
+              "glitch",
+              "dissolve"
+            ],
+            "title": "Kind"
+          },
+          "intensity": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Intensity",
+            "default": 1
+          },
+          "speed": {
+            "type": "number",
+            "maximum": 3.0,
+            "minimum": 0.25,
+            "title": "Speed",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "CharacterEffect"
+      },
       "CharacterEnterCue": {
         "properties": {
           "id": {
@@ -632,6 +780,16 @@
             "type": "string",
             "const": "character.enter",
             "title": "Type"
+          },
+          "characterEffect": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CharacterEffect"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "characterRef": {
             "type": "string",
@@ -897,6 +1055,88 @@
         ],
         "title": "ChoiceShowCue"
       },
+      "DialogueBoxSettings": {
+        "properties": {
+          "heightPercent": {
+            "type": "number",
+            "maximum": 80.0,
+            "minimum": 18.0,
+            "title": "Heightpercent",
+            "default": 46
+          },
+          "speaker": {
+            "$ref": "#/components/schemas/DialogueRegionStyle"
+          },
+          "subtitle": {
+            "$ref": "#/components/schemas/DialogueRegionStyle"
+          },
+          "text": {
+            "$ref": "#/components/schemas/DialogueRegionStyle"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/DialogueRuleStyle"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DialogueBoxSettings"
+      },
+      "DialogueRegionStyle": {
+        "properties": {
+          "fontSize": {
+            "type": "number",
+            "maximum": 120.0,
+            "minimum": 8.0,
+            "title": "Fontsize",
+            "default": 24
+          },
+          "x": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "X",
+            "default": 8
+          },
+          "y": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "default": 16
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DialogueRegionStyle"
+      },
+      "DialogueRuleStyle": {
+        "properties": {
+          "x": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "X",
+            "default": 8
+          },
+          "y": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Y",
+            "default": 36
+          },
+          "width": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 4.0,
+            "title": "Width",
+            "default": 72
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "DialogueRuleStyle"
+      },
       "DialogueShowCue": {
         "properties": {
           "id": {
@@ -934,15 +1174,90 @@
             "title": "Text"
           },
           "typingCps": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Typingcps",
-            "default": 36
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typingcps"
           },
           "waitForAdvance": {
             "type": "boolean",
             "title": "Waitforadvance",
             "default": true
+          },
+          "voiceAssetRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voiceassetref"
+          },
+          "voiceStartMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voicestartms"
+          },
+          "voiceEndMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voiceendms"
+          },
+          "holdAfterMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holdafterms"
+          },
+          "voiceHoldMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voiceholdms"
+          },
+          "advanceWhen": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdvanceWhen"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -968,6 +1283,69 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HaloGlow": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "off",
+              "follow",
+              "custom"
+            ],
+            "title": "Mode",
+            "default": "off"
+          },
+          "color": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "intensity": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Intensity",
+            "default": 1
+          },
+          "speed": {
+            "type": "number",
+            "maximum": 3.0,
+            "minimum": 0.25,
+            "title": "Speed",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "HaloGlow"
+      },
+      "HaloMask": {
+        "properties": {
+          "assetRef": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Assetref"
+          },
+          "invert": {
+            "type": "boolean",
+            "title": "Invert",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assetRef"
+        ],
+        "title": "HaloMask"
       },
       "HealthResponse": {
         "properties": {
@@ -1251,6 +1629,36 @@
             ],
             "title": "Nextsceneid"
           },
+          "exitTransition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SceneExitTransition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "entryTransition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SceneExitTransition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endingTransition": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SceneExitTransition"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "cues": {
             "items": {
               "oneOf": [
@@ -1315,6 +1723,90 @@
         ],
         "title": "Scene"
       },
+      "SceneExitTransition": {
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": [
+              "archive-shutter",
+              "chromatic-slice",
+              "fade-black",
+              "fade-white",
+              "halo-iris",
+              "none"
+            ],
+            "title": "Preset",
+            "default": "none"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Durationms",
+            "default": 900
+          },
+          "holdMs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Holdms",
+            "default": 0
+          },
+          "intensity": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.1,
+            "title": "Intensity",
+            "default": 1
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SceneExitTransition"
+      },
+      "StageSettings": {
+        "properties": {
+          "aspect": {
+            "type": "string",
+            "enum": [
+              "16:9",
+              "21:9",
+              "4:3",
+              "3:2",
+              "1:1",
+              "9:16",
+              "custom"
+            ],
+            "title": "Aspect",
+            "default": "16:9"
+          },
+          "width": {
+            "type": "integer",
+            "maximum": 7680.0,
+            "minimum": 320.0,
+            "title": "Width",
+            "default": 1920
+          },
+          "height": {
+            "type": "integer",
+            "maximum": 4320.0,
+            "minimum": 240.0,
+            "title": "Height",
+            "default": 1080
+          },
+          "backgroundFit": {
+            "type": "string",
+            "enum": [
+              "contain",
+              "cover",
+              "fill"
+            ],
+            "title": "Backgroundfit",
+            "default": "contain"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StageSettings"
+      },
       "StoryProject": {
         "properties": {
           "schemaVersion": {
@@ -1343,6 +1835,85 @@
             "type": "string",
             "format": "date-time",
             "title": "Updatedat"
+          },
+          "dialogueFontRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dialoguefontref"
+          },
+          "dialogueHoldMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dialogueholdms"
+          },
+          "voiceHoldMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voiceholdms"
+          },
+          "openingFadeMs": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openingfadems"
+          },
+          "dialogueTypingCps": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dialoguetypingcps"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StageSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dialogueBox": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DialogueBoxSettings"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "chapters": {
             "items": {
@@ -1447,13 +2018,14 @@
               "chromatic-slice",
               "fade-black",
               "fade-white",
-              "halo-iris"
+              "halo-iris",
+              "none"
             ],
             "title": "Preset"
           },
           "durationMs": {
             "type": "integer",
-            "minimum": 240.0,
+            "minimum": 0.0,
             "title": "Durationms",
             "default": 900
           },

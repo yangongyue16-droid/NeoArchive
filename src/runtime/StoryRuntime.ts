@@ -1,3 +1,5 @@
+import { normalizeCharacterEffect, type CharacterEffect } from "../effects/characterSettings";
+import { normalizeBackgroundEffect, type BackgroundEffect } from "../effects/settings";
 import {
   findScene,
   getAllScenes,
@@ -12,6 +14,7 @@ import {
 } from "../project-schema/types";
 
 export type RuntimeCharacter = {
+  effect?: CharacterEffect | null;
   characterRef: string;
   animation: string;
   entryCueId: string;
@@ -68,6 +71,7 @@ export type PlaybackState = {
   sceneTitle: string | null;
   currentCueIndex: number;
   backgroundRef: string | null;
+  backgroundEffect: BackgroundEffect | null;
   backgroundCueId: string | null;
   backgroundInstanceId: number;
   backgroundTransitionMs: number;
@@ -94,6 +98,7 @@ const initialState: PlaybackState = {
   sceneTitle: null,
   currentCueIndex: 0,
   backgroundRef: null,
+  backgroundEffect: null,
   backgroundCueId: null,
   backgroundInstanceId: 0,
   backgroundTransitionMs: 0,
@@ -232,7 +237,11 @@ export class StoryRuntime {
       throw new Error("存档引用的场景不存在。");
     }
     this.clearSceneTransitionTimer();
-    this.commit({ ...initialState, ...structuredClone(snapshot.state) });
+    this.commit({
+      ...initialState,
+      ...structuredClone(snapshot.state),
+      backgroundEffect: normalizeBackgroundEffect(snapshot.state.backgroundEffect),
+    });
   }
 
   start(sceneId = this.project.entrySceneId): void {
@@ -330,6 +339,7 @@ export class StoryRuntime {
           nextState = {
             ...nextState,
             backgroundRef: cue.assetRef,
+            backgroundEffect: normalizeBackgroundEffect(cue.effect),
             backgroundCueId: cue.id,
             backgroundInstanceId: previousState.backgroundInstanceId,
             backgroundTransitionMs: previousState.backgroundTransitionMs,
@@ -357,6 +367,7 @@ export class StoryRuntime {
               {
                 ...previousCharacter,
                 animation: cue.animation,
+                effect: normalizeCharacterEffect(cue.characterEffect),
                 transform: cue.transform,
               },
             ],
@@ -637,6 +648,7 @@ export class StoryRuntime {
         return withoutDialogueVoice({
           ...state,
           backgroundRef: cue.assetRef,
+          backgroundEffect: normalizeBackgroundEffect(cue.effect),
           backgroundCueId: cue.id,
           backgroundInstanceId: this.backgroundSequence,
           backgroundTransitionMs: transitionMs,
@@ -655,6 +667,7 @@ export class StoryRuntime {
             {
               characterRef: cue.characterRef,
               animation: cue.animation,
+              effect: normalizeCharacterEffect(cue.characterEffect),
               entryCueId: cue.id,
               entryInstanceId: this.characterEntrySequence,
               enterDurationMs: cue.enterDurationMs ?? 420,

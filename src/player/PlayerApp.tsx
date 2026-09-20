@@ -151,7 +151,6 @@ export function PlayerApp() {
     >
       <header className="player-toolbar">
         <div>
-          <p className="eyebrow">GALGAME PLAYER</p>
           <strong>{playback.sceneTitle ?? project.title}</strong>
         </div>
         <span>
@@ -229,7 +228,6 @@ export function PlayerApp() {
           <section className="history-panel">
             <header>
               <div>
-                <p className="eyebrow">BACKLOG</p>
                 <h2>对话历史</h2>
               </div>
               <button onClick={() => setHistoryOpen(false)} type="button">

@@ -5,6 +5,9 @@ import { App } from "./App";
 import { queryClient } from "./app/queryClient";
 import { hydrateUserAssets } from "./assets/userAssets";
 import "./styles.css";
+import "./effects/effects.css";
+import "./editor/editor.css";
+import "./home/home.css";
 
 void hydrateUserAssets();
 

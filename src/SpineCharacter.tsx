@@ -1,8 +1,16 @@
+import { createGlowLayers } from "./effects/GlowLayers";
+import { createCharacterFilter } from "./effects/CharacterFilter";
+import {
+  isHaloSlot,
+  normalizeCharacterEffect,
+  type CharacterEffect,
+} from "./effects/characterSettings";
 import { useEffect, useRef, useState } from "react";
 import { Spine } from "@esotericsoftware/spine-pixi-v8";
 import { Application, Assets } from "pixi.js";
 
 type SpineCharacterProps = {
+  effect?: CharacterEffect | null;
   animationName?: string;
   enterDurationMs: number;
   onEnterComplete?: () => void;
@@ -13,6 +21,7 @@ type SpineCharacterProps = {
 };
 
 export function SpineCharacter({
+  effect,
   animationName,
   enterDurationMs,
   onEnterComplete,
@@ -21,6 +30,8 @@ export function SpineCharacter({
   scalePercent,
   skeletonUrl,
 }: SpineCharacterProps) {
+  const effectRef = useRef(effect);
+  effectRef.current = effect;
   const hostRef = useRef<HTMLDivElement>(null);
   const fitCharacterRef = useRef<(() => void) | null>(null);
   const onEnterCompleteRef = useRef(onEnterComplete);
@@ -48,6 +59,11 @@ export function SpineCharacter({
     let revealFrame = 0;
     let settleFrame = 0;
     let entryCompleted = false;
+    let glowLayers: ReturnType<typeof createGlowLayers> | null = null;
+    let glowBody: Spine | null = null;
+    let glowHalo: Spine | null = null;
+    let characterFilter: ReturnType<typeof createCharacterFilter> | null = null;
+    let updateCharacterEffect: (() => void) | undefined;
     const atlasUrl = skeletonUrl.replace(/\.skel$/, ".atlas");
     const skeletonAlias = `spine-skeleton:${skeletonUrl}`;
     const atlasAlias = `spine-atlas:${atlasUrl}`;
@@ -58,6 +74,10 @@ export function SpineCharacter({
       }
       entryCompleted = true;
       onEnterCompleteRef.current?.();
+    };
+
+    const captureFrame = () => {
+      if (!disposed && initialized) app?.render();
     };
 
     const initialize = async () => {
@@ -108,6 +128,63 @@ export function SpineCharacter({
         character.state.setAnimation(0, animation.name, true);
       }
       character.update(0);
+      const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      let effectTime = 0;
+      updateCharacterEffect = () => {
+        const settings = normalizeCharacterEffect(effectRef.current);
+        const seconds = Math.min(nextApp.ticker.deltaMS, 50) / 1000;
+        if (settings?.kind === "glow" && !motion.matches) {
+          if (characterFilter) {
+            character.filters = [];
+            characterFilter.destroy();
+            characterFilter = null;
+          }
+          if (!glowLayers) {
+            const makeLayer = (halo: boolean) => {
+              const layer = Spine.from({
+                skeleton: skeletonAlias,
+                atlas: atlasAlias,
+                autoUpdate: true,
+              });
+              if (animation) {
+                const track = layer.state.setAnimation(0, animation.name, true);
+                track.trackTime = character.state.getCurrent(0)?.trackTime ?? 0;
+              }
+              layer.afterUpdateWorldTransforms = (spine) => {
+                for (const slot of spine.skeleton.slots)
+                  if (isHaloSlot(slot) !== halo) slot.color.a = 0;
+              };
+              layer.update(0);
+              nextApp.stage.addChildAt(layer, 0);
+              return layer;
+            };
+            glowBody = makeLayer(false);
+            glowHalo = makeLayer(true);
+            glowLayers = createGlowLayers(glowBody, glowHalo);
+          }
+          for (const layer of [glowBody, glowHalo]) {
+            layer!.position.copyFrom(character.position);
+            layer!.scale.copyFrom(character.scale);
+          }
+          glowLayers.update(settings, seconds);
+          return;
+        }
+        glowLayers?.update(null, seconds);
+        if (!settings || settings.intensity === 0 || motion.matches) {
+          if (characterFilter) {
+            character.filters = [];
+            characterFilter.destroy();
+            characterFilter = null;
+          }
+          return;
+        }
+        if (!characterFilter) {
+          characterFilter = createCharacterFilter();
+          character.filters = [characterFilter.filter];
+        }
+        effectTime += (Math.min(nextApp.ticker.deltaMS, 50) / 1000) * settings.speed;
+        characterFilter.update(settings, effectTime);
+      };
 
       const fitCharacter = () => {
         const { height, width } = nextApp.renderer;
@@ -126,7 +203,10 @@ export function SpineCharacter({
       fitCharacterRef.current = fitCharacter;
       fitCharacter();
       nextApp.stage.addChild(character);
+      nextApp.ticker.add(updateCharacterEffect);
+      updateCharacterEffect();
       host.appendChild(canvas);
+      canvas.addEventListener("neoarchive-capture-frame", captureFrame);
       resizeObserver = new ResizeObserver(fitCharacter);
       resizeObserver.observe(host);
 
@@ -168,7 +248,11 @@ export function SpineCharacter({
       window.cancelAnimationFrame(settleFrame);
       resizeObserver?.disconnect();
       canvas?.removeEventListener("animationend", completeEntry);
+      canvas?.removeEventListener("neoarchive-capture-frame", captureFrame);
       if (initialized) {
+        if (updateCharacterEffect) app?.ticker.remove(updateCharacterEffect);
+        characterFilter?.destroy();
+        glowLayers?.destroy();
         app?.destroy(true, { children: true, texture: false, textureSource: false });
       }
     };

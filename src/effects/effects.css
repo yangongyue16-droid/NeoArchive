@@ -1,0 +1,87 @@
+.background-effect-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+.background-effect-status {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 11;
+  max-width: calc(100% - 20px);
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: #17212ee6;
+  color: #f1d4a8;
+  font-size: 11px;
+  pointer-events: none;
+}
+.background-effect-controls {
+  display: grid;
+  gap: 14px;
+  margin: 16px 18px;
+  padding: 14px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+.background-effect-controls legend {
+  padding: 0 5px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.background-effect-controls label > span {
+  display: flex;
+  justify-content: space-between;
+}
+.background-effect-controls output {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+.background-effect-controls input[type="range"] {
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+.background-effect-canvas.covers-dialogue {
+  z-index: 4;
+}
+.background-effect-controls .effect-coverage-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.background-effect-controls .effect-coverage-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.background-effect-controls input[type="color"] {
+  height: 36px;
+  padding: 3px;
+  cursor: pointer;
+}
+
+.halo-mask-controls {
+  min-width: 0;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+}
+.halo-mask-preview {
+  width: 100%;
+  height: 64px;
+  object-fit: contain;
+  background: #24272b;
+  border-radius: 6px;
+}
+.halo-mask-name {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}

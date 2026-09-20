@@ -4,6 +4,12 @@
  * NeoArchive Local API
  * OpenAPI spec version: 0.1.0
  */
+export interface AdvanceWhen {
+  text?: boolean;
+  voice?: boolean;
+  backgroundVideo?: boolean;
+}
+
 export interface AssetResponse {
   id: string;
   contentHash: string;
@@ -61,14 +67,42 @@ export interface AudioStopCue {
   channel: AudioStopCueChannel;
 }
 
+export type BackgroundEffectKind = typeof BackgroundEffectKind[keyof typeof BackgroundEffectKind];
+
+
+export const BackgroundEffectKind = {
+  glitch: 'glitch',
+  vhs: 'vhs',
+  droplets: 'droplets',
+  frost: 'frost',
+  shatter: 'shatter',
+} as const;
+
+export interface BackgroundEffect {
+  coverDialogue?: boolean;
+  kind: BackgroundEffectKind;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  intensity?: number;
+  /**
+     * @minimum 0.25
+     * @maximum 3
+     */
+  speed?: number;
+}
+
 export interface BackgroundSetCue {
   /** @minLength 1 */
   id: string;
   /** @minimum 0 */
   atMs: number;
   type: 'background.set';
+  effect?: BackgroundEffect | null;
   assetRef: string;
   transitionMs?: number | null;
+  waitForMediaEnd?: boolean | null;
 }
 
 export type SceneKind = typeof SceneKind[keyof typeof SceneKind];
@@ -79,6 +113,87 @@ export const SceneKind = {
   direction: 'direction',
   choice: 'choice',
 } as const;
+
+export type SceneExitTransitionPreset = typeof SceneExitTransitionPreset[keyof typeof SceneExitTransitionPreset];
+
+
+export const SceneExitTransitionPreset = {
+  'archive-shutter': 'archive-shutter',
+  'chromatic-slice': 'chromatic-slice',
+  'fade-black': 'fade-black',
+  'fade-white': 'fade-white',
+  'halo-iris': 'halo-iris',
+  none: 'none',
+} as const;
+
+export interface SceneExitTransition {
+  preset?: SceneExitTransitionPreset;
+  /** @minimum 0 */
+  durationMs?: number;
+  /** @minimum 0 */
+  holdMs?: number;
+  /**
+     * @minimum 0.1
+     * @maximum 2
+     */
+  intensity?: number;
+}
+
+export type HaloGlowMode = typeof HaloGlowMode[keyof typeof HaloGlowMode];
+
+
+export const HaloGlowMode = {
+  off: 'off',
+  follow: 'follow',
+  custom: 'custom',
+} as const;
+
+export interface HaloGlow {
+  mode?: HaloGlowMode;
+  color?: string | null;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  intensity?: number;
+  /**
+     * @minimum 0.25
+     * @maximum 3
+     */
+  speed?: number;
+}
+
+export interface HaloMask {
+  /** @minLength 1 */
+  assetRef: string;
+  invert?: boolean;
+}
+
+export type CharacterEffectKind = typeof CharacterEffectKind[keyof typeof CharacterEffectKind];
+
+
+export const CharacterEffectKind = {
+  glow: 'glow',
+  glitch: 'glitch',
+  dissolve: 'dissolve',
+} as const;
+
+export interface CharacterEffect {
+  halo?: HaloGlow | null;
+  haloMask?: HaloMask | null;
+  color?: string | null;
+  kind: CharacterEffectKind;
+  /**
+     * @minimum 0
+     * @maximum 2
+     */
+  intensity?: number;
+  /**
+     * @minimum 0.25
+     * @maximum 3
+     */
+  speed?: number;
+}
 
 export interface CharacterTransform {
   x: number;
@@ -93,6 +208,7 @@ export interface CharacterEnterCue {
   /** @minimum 0 */
   atMs: number;
   type: 'character.enter';
+  characterEffect?: CharacterEffect | null;
   characterRef: string;
   animation: string;
   /** @minimum 0 */
@@ -137,9 +253,14 @@ export interface DialogueShowCue {
   speaker: string;
   subtitle?: string | null;
   text: string;
-  /** @exclusiveMinimum 0 */
-  typingCps?: number;
+  typingCps?: number | null;
   waitForAdvance?: boolean;
+  voiceAssetRef?: string | null;
+  voiceStartMs?: number | null;
+  voiceEndMs?: number | null;
+  holdAfterMs?: number | null;
+  voiceHoldMs?: number | null;
+  advanceWhen?: AdvanceWhen | null;
 }
 
 export interface ChoiceOption {
@@ -168,6 +289,7 @@ export const TransitionPlayCuePreset = {
   'fade-black': 'fade-black',
   'fade-white': 'fade-white',
   'halo-iris': 'halo-iris',
+  none: 'none',
 } as const;
 
 export type TimeWheelConfigSource = typeof TimeWheelConfigSource[keyof typeof TimeWheelConfigSource];
@@ -205,7 +327,7 @@ export interface TransitionPlayCue {
   atMs: number;
   type: 'transition.play';
   preset: TransitionPlayCuePreset;
-  /** @minimum 240 */
+  /** @minimum 0 */
   durationMs?: number;
   /** @minimum 0 */
   holdMs?: number;
@@ -233,6 +355,9 @@ export interface Scene {
   kind: SceneKind;
   autoAdvanceMs?: number | null;
   nextSceneId?: string | null;
+  exitTransition?: SceneExitTransition | null;
+  entryTransition?: SceneExitTransition | null;
+  endingTransition?: SceneExitTransition | null;
   cues: (BackgroundSetCue | CharacterEnterCue | CharacterUpdateCue | CharacterExitCue | DialogueShowCue | AudioPlayCue | AudioStopCue | ChoiceShowCue | TransitionPlayCue | WaitCue)[];
 }
 
@@ -240,6 +365,54 @@ export interface Chapter {
   id: string;
   title: string;
   scenes: Scene[];
+}
+
+export interface DialogueRegionStyle {
+  /**
+     * @minimum 8
+     * @maximum 120
+     */
+  fontSize?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  x?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  y?: number;
+}
+
+export interface DialogueRuleStyle {
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  x?: number;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  y?: number;
+  /**
+     * @minimum 4
+     * @maximum 100
+     */
+  width?: number;
+}
+
+export interface DialogueBoxSettings {
+  /**
+     * @minimum 18
+     * @maximum 80
+     */
+  heightPercent?: number;
+  speaker?: DialogueRegionStyle;
+  subtitle?: DialogueRegionStyle;
+  text?: DialogueRegionStyle;
+  rule?: DialogueRuleStyle;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -279,6 +452,43 @@ export interface ProjectDiagnostic {
   pointer: string;
 }
 
+export type StageSettingsAspect = typeof StageSettingsAspect[keyof typeof StageSettingsAspect];
+
+
+export const StageSettingsAspect = {
+  '16:9': '16:9',
+  '21:9': '21:9',
+  '4:3': '4:3',
+  '3:2': '3:2',
+  '1:1': '1:1',
+  '9:16': '9:16',
+  custom: 'custom',
+} as const;
+
+export type StageSettingsBackgroundFit = typeof StageSettingsBackgroundFit[keyof typeof StageSettingsBackgroundFit];
+
+
+export const StageSettingsBackgroundFit = {
+  contain: 'contain',
+  cover: 'cover',
+  fill: 'fill',
+} as const;
+
+export interface StageSettings {
+  aspect?: StageSettingsAspect;
+  /**
+     * @minimum 320
+     * @maximum 7680
+     */
+  width?: number;
+  /**
+     * @minimum 240
+     * @maximum 4320
+     */
+  height?: number;
+  backgroundFit?: StageSettingsBackgroundFit;
+}
+
 export interface StoryProject {
   schemaVersion: 1;
   projectId: string;
@@ -286,6 +496,13 @@ export interface StoryProject {
   entrySceneId: string;
   createdAt: string;
   updatedAt: string;
+  dialogueFontRef?: string | null;
+  dialogueHoldMs?: number | null;
+  voiceHoldMs?: number | null;
+  openingFadeMs?: number | null;
+  dialogueTypingCps?: number | null;
+  stage?: StageSettings | null;
+  dialogueBox?: DialogueBoxSettings | null;
   chapters: Chapter[];
 }
 

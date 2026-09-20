@@ -37,15 +37,45 @@ class BaseCue(SchemaModel):
     at_ms: int = Field(ge=0)
 
 
+class BackgroundEffect(SchemaModel):
+    cover_dialogue: bool = False
+    kind: Literal["glitch", "vhs", "droplets", "frost", "shatter"]
+    intensity: float = Field(default=1, ge=0, le=2, allow_inf_nan=False)
+    speed: float = Field(default=1, ge=0.25, le=3, allow_inf_nan=False)
+
+
 class BackgroundSetCue(BaseCue):
     type: Literal["background.set"]
+    effect: BackgroundEffect | None = None
     asset_ref: str
     transition_ms: int | None = Field(default=None, ge=0)
     wait_for_media_end: bool | None = None
 
 
+class HaloGlow(SchemaModel):
+    mode: Literal["off", "follow", "custom"] = "off"
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    intensity: float = Field(default=1, ge=0, le=2, allow_inf_nan=False)
+    speed: float = Field(default=1, ge=0.25, le=3, allow_inf_nan=False)
+
+
+class HaloMask(SchemaModel):
+    asset_ref: str = Field(min_length=1)
+    invert: bool = False
+
+
+class CharacterEffect(SchemaModel):
+    halo: HaloGlow | None = None
+    halo_mask: HaloMask | None = None
+    color: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    kind: Literal["glow", "glitch", "dissolve"]
+    intensity: float = Field(default=1, ge=0, le=2, allow_inf_nan=False)
+    speed: float = Field(default=1, ge=0.25, le=3, allow_inf_nan=False)
+
+
 class CharacterEnterCue(BaseCue):
     type: Literal["character.enter"]
+    character_effect: CharacterEffect | None = None
     character_ref: str
     animation: str
     delay_ms: int = Field(default=400, ge=0)

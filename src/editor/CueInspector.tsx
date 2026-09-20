@@ -1,5 +1,13 @@
+import { CharacterEffectControls } from "../effects/CharacterEffectControls";
+import { BackgroundEffectControls } from "../effects/BackgroundEffectControls";
+import { cueLabels } from "./cueLabels";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { audioChannelOptions, backgroundOptions, characterOptions } from "../assets/catalog";
+import {
+  audioChannelOptions,
+  backgroundOptions,
+  characterOptions,
+  resolveCharacter,
+} from "../assets/catalog";
 import { getUserAsset, getUserAssetSnapshot, subscribeUserAssets } from "../assets/userAssets";
 import type { CharacterTransform, StoryCue, TimeWheelConfig } from "../project-schema/types";
 import type { EditableCuePatch } from "../state/editorStore";
@@ -135,7 +143,6 @@ function CharacterPlacement({
     <section className="placement-controller">
       <div className="placement-controller-heading">
         <div>
-          <span className="live-indicator">像素级即时预览</span>
           <h3>立绘控制器</h3>
         </div>
       </div>
@@ -167,7 +174,7 @@ function CharacterPlacement({
 export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspectorProps) {
   useSyncExternalStore(subscribeUserAssets, getUserAssetSnapshot, () => 0);
   if (!cue) {
-    return <p className="empty-inspector">选择一条剧本行后在这里编辑。</p>;
+    return <p className="empty-inspector">未选中剧本行</p>;
   }
 
   const timeWheel =
@@ -182,8 +189,7 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
     <>
       <div className="panel-heading inspector-heading">
         <div>
-          <p className="eyebrow">INSPECTOR · LIVE</p>
-          <h2>{cue.type}</h2>
+          <h2>{cueLabels[cue.type]}属性</h2>
         </div>
       </div>
       {cue.type === "dialogue.show" ? (
@@ -205,7 +211,7 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
             </label>
           </div>
           <label>
-            <span>对白文本 · 每个字即时刷新</span>
+            <span>对白文本</span>
             <textarea
               onChange={(event) => onUpdate({ text: event.currentTarget.value }, "text")}
               rows={7}
@@ -259,7 +265,6 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
               type="number"
               value={cue.holdAfterMs === undefined ? "" : cue.holdAfterMs / 1000}
             />
-            <small>勾中的条件都满足后，再等这么久切下一句。成品和幕前共用。</small>
           </label>
           {cue.voiceAssetRef ? (
             <label>
@@ -283,14 +288,10 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
                 type="number"
                 value={cue.voiceHoldMs === undefined ? "" : cue.voiceHoldMs / 1000}
               />
-              <small>
-                留空跟随全局默认 {Math.round(voiceHoldDefaultMs ?? 1000) / 1000} 秒；填 0 =
-                配音播完立即切下一句。
-              </small>
             </label>
           ) : null}
           <fieldset className="advance-when">
-            <legend>自动切下一句，等这些都完成</legend>
+            <legend>自动继续条件</legend>
             <label className="checkbox-field">
               <input
                 checked={cue.advanceWhen?.text ?? true}
@@ -341,6 +342,10 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
 
       {cue.type === "background.set" ? (
         <>
+          <BackgroundEffectControls
+            effect={cue.effect}
+            onChange={(effect) => onUpdate({ effect }, "effect")}
+          />
           <label>
             <span>背景素材</span>
             <select
@@ -354,7 +359,7 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
               }}
               value={cue.assetRef || "__empty__"}
             >
-              <option value="__empty__">（未选择 · 请选择背景）</option>
+              <option value="__empty__">（未选择）</option>
               {backgroundOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -374,7 +379,7 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
             onImported={(assetRef) => onUpdate({ assetRef }, "assetRef")}
           />
           {getUserAsset(cue.assetRef) ? (
-            <p className="asset-file-name">已选：{getUserAsset(cue.assetRef)?.name}</p>
+            <p className="asset-file-name">{getUserAsset(cue.assetRef)?.name}</p>
           ) : null}
           <label>
             <span>淡入时间（ms）</span>
@@ -407,6 +412,11 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
 
       {cue.type === "character.enter" ? (
         <>
+          <CharacterEffectControls
+            effect={cue.characterEffect}
+            imageCharacter={!resolveCharacter(cue.characterRef)}
+            onChange={(characterEffect) => onUpdate({ characterEffect }, "characterEffect")}
+          />
           <label>
             <span>角色素材</span>
             <select
@@ -415,6 +425,11 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
               }
               value={cue.characterRef}
             >
+              {!characterOptions.some((option) => option.value === cue.characterRef) ? (
+                <option value={cue.characterRef}>
+                  {getUserAsset(cue.characterRef)?.name ?? cue.characterRef}
+                </option>
+              ) : null}
               {characterOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -422,13 +437,23 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
               ))}
             </select>
           </label>
-          <label>
-            <span>Spine 动画</span>
-            <input
-              onChange={(event) => onUpdate({ animation: event.currentTarget.value }, "animation")}
-              value={cue.animation}
-            />
-          </label>
+          <LocalAssetPicker
+            accept="image/*"
+            allowed={["image"]}
+            buttonLabel="导入立绘图片"
+            onImported={(characterRef) => onUpdate({ characterRef }, "characterRef")}
+          />
+          {resolveCharacter(cue.characterRef) ? (
+            <label>
+              <span>Spine 动画</span>
+              <input
+                onChange={(event) =>
+                  onUpdate({ animation: event.currentTarget.value }, "animation")
+                }
+                value={cue.animation}
+              />
+            </label>
+          ) : null}
           <label>
             <span>入场前等待（ms）</span>
             <DeferredNumberInput
@@ -458,7 +483,6 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
             <span>素材引用</span>
             <input
               onChange={(event) => onUpdate({ assetRef: event.currentTarget.value }, "assetRef")}
-              placeholder="选择本地音频，或填写已有引用"
               value={cue.assetRef.startsWith("user:") ? "" : cue.assetRef}
             />
           </label>
@@ -469,7 +493,7 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
             onImported={(assetRef) => onUpdate({ assetRef }, "assetRef")}
           />
           {getUserAsset(cue.assetRef) ? (
-            <p className="asset-file-name">已选：{getUserAsset(cue.assetRef)?.name}</p>
+            <p className="asset-file-name">{getUserAsset(cue.assetRef)?.name}</p>
           ) : null}
           <div className="field-row">
             <label>
@@ -581,9 +605,6 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
               ))}
             </select>
           </label>
-          <p className="transition-description">
-            {transitionPresets.find((preset) => preset.value === cue.preset)?.description}
-          </p>
           {cue.preset === "none" ? null : cue.preset === "chromatic-slice" ? (
             <section className="time-wheel-settings">
               <h3>剧情时间</h3>
@@ -723,7 +744,7 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
       {cue.type === "choice.show" ? (
         <div className="inspector-note">
           <strong>{cue.prompt ?? "选择"}</strong>
-          <span>{cue.options.length} 个选项；分支编辑将在流程模式接入。</span>
+          <span>{cue.options.length} 个选项</span>
         </div>
       ) : null}
     </>

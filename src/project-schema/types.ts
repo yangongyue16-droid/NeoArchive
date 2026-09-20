@@ -1,3 +1,6 @@
+import type { CharacterEffect } from "../effects/characterSettings";
+import type { BackgroundEffect } from "../effects/settings";
+
 export type SceneKind = "dialogue" | "direction" | "choice";
 
 export type CharacterTransform = {
@@ -12,6 +15,7 @@ type BaseCue = {
 };
 
 export type BackgroundSetCue = BaseCue & {
+  effect?: BackgroundEffect | null;
   type: "background.set";
   assetRef: string;
   transitionMs?: number;
@@ -20,6 +24,7 @@ export type BackgroundSetCue = BaseCue & {
 
 export type CharacterEnterCue = BaseCue & {
   type: "character.enter";
+  characterEffect?: CharacterEffect | null;
   characterRef: string;
   animation: string;
   delayMs?: number;

@@ -26,6 +26,8 @@ export type AddableCueType =
   | "wait";
 
 export type EditableCuePatch = Partial<{
+  characterEffect: import("../effects/characterSettings").CharacterEffect | null;
+  effect: import("../effects/settings").BackgroundEffect | null;
   animation: string;
   assetRef: string;
   atMs: number;

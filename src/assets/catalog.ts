@@ -108,3 +108,8 @@ export function resolveAudio(assetRef: string): string | null {
 function looksLikeVideo(value: string): boolean {
   return /\.(?:m4v|mkv|mov|mp4|webm)(?:$|[?#])/i.test(value);
 }
+
+export function resolveCharacterImage(characterRef: string): string | null {
+  const asset = getUserAsset(characterRef);
+  return asset?.kind === "image" ? asset.url : null;
+}
