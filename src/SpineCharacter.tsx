@@ -110,10 +110,17 @@ export function SpineCharacter({
       character.update(0);
 
       const fitCharacter = () => {
-        const { height, width } = nextApp.renderer;
+        // Synchronize the drawing buffer before positioning. ResizePlugin otherwise
+        // waits for window.resize and can miss editor-only container changes.
+        nextApp.resize();
+        // renderer.width/height are physical pixels; scene coordinates are logical.
+        const { height, width } = nextApp.screen;
         const placement = placementRef.current;
         character.scale.set(1);
         const bounds = character.getLocalBounds();
+        if (bounds.height <= 0 || width <= 0 || height <= 0) {
+          return;
+        }
         const baseScale = (height * 0.94) / bounds.height;
         const scale = (baseScale * placement.scalePercent) / 100;
         character.scale.set(scale);

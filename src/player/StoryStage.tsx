@@ -10,7 +10,12 @@ import {
 } from "react";
 import { resolveAudio, resolveBackgroundMedia, resolveCharacter } from "../assets/catalog";
 import { getUserAssetSnapshot, subscribeUserAssets } from "../assets/userAssets";
-import { dialogueBoxCssVars, normalizeDialogueBox, stageCssVars } from "../project-schema/stage";
+import {
+  dialogueBoxCssVars,
+  normalizeDialogueBox,
+  normalizeStageSettings,
+  stageCssVars,
+} from "../project-schema/stage";
 import type {
   DialogueBoxSettings,
   DialogueRegionStyle,
@@ -257,14 +262,14 @@ export function StoryStage({
     }
     const updateScale = () => {
       const width = node.getBoundingClientRect().width;
-      const designWidth = stage?.width ?? 1920;
+      const designWidth = normalizeStageSettings(stage).width;
       setStageScale(width > 0 && designWidth > 0 ? width / designWidth : 1);
     };
     updateScale();
     const observer = new ResizeObserver(updateScale);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [stage?.width]);
+  }, [stage?.width, stage?.aspect]);
 
   useEffect(() => {
     if (!dialogue || !textComplete || completionNotifiedRef.current === dialogueKey) {

@@ -1,8 +1,8 @@
 import { normalizeStageSettings } from "./stage";
 import type { StoryProject } from "./types";
 
-function withCoverBackground(project: StoryProject): StoryProject {
-  if (project.stage?.backgroundFit === "fill") {
+function withDefaultBackgroundFit(project: StoryProject): StoryProject {
+  if (project.stage?.backgroundFit !== undefined) {
     return project;
   }
   return {
@@ -86,7 +86,7 @@ export function parseProjectFile(contents: string): StoryProject {
   if (!isStoryProject(parsed)) {
     throw new Error("文件不是有效的 NeoArchive schemaVersion 1 工程。");
   }
-  return stripTransitions(withCoverBackground(parsed));
+  return stripTransitions(withDefaultBackgroundFit(parsed));
 }
 
 /** 读取指定工程的本地草稿；无则 null。 */

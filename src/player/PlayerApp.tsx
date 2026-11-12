@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { loadDraftProject } from "../project-schema/projectFile";
 import { sampleProject } from "../project-schema/sampleProject";
 import { StoryRuntime, type RuntimeDialogue } from "../runtime/StoryRuntime";
@@ -35,6 +35,7 @@ export function PlayerApp() {
   const [chromeHidden, setChromeHidden] = useState(true);
   const [hudHidden, setHudHidden] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenRequestRef = useRef(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const autoAdvance = useAutoAdvance(project, playback, runtime, autoMode);
@@ -83,6 +84,7 @@ export function PlayerApp() {
   ]);
 
   const setExclusiveFullscreen = useCallback(async (next: boolean) => {
+    const requestId = ++fullscreenRequestRef.current;
     try {
       if ("__TAURI_INTERNALS__" in window) {
         const { invoke } = await import("@tauri-apps/api/core");
@@ -92,10 +94,30 @@ export function PlayerApp() {
       } else if (document.fullscreenElement) {
         await document.exitFullscreen();
       }
-      setFullscreen(next);
+      if (requestId !== fullscreenRequestRef.current) {
+        return;
+      }
+      setFullscreen("__TAURI_INTERNALS__" in window ? next : Boolean(document.fullscreenElement));
+      setSaveNotice(null);
     } catch {
-      setFullscreen(next);
+      // An earlier automatic request may reject after the user has retried.
+      if (requestId !== fullscreenRequestRef.current) {
+        return;
+      }
+      if (!("__TAURI_INTERNALS__" in window)) {
+        setFullscreen(Boolean(document.fullscreenElement));
+      }
+      if (next) {
+        setSaveNotice("未能进入全屏，可使用底部「全屏」按钮重试。");
+        setChromeHidden(false);
+      }
     }
+  }, []);
+
+  useEffect(() => {
+    const syncFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
 
   // 播放结束（收尾过渡播完后）自动回到主界面
@@ -111,8 +133,16 @@ export function PlayerApp() {
   }, [playback.status, setExclusiveFullscreen]);
 
   useEffect(() => {
-    void setExclusiveFullscreen(true);
-    setChromeHidden(true);
+    // Desktop playback stays automatic. Browser fullscreen starts from the
+    // explicit button so a mount/StrictMode replay cannot consume or lose
+    // transient activation and race a later user request.
+    if ("__TAURI_INTERNALS__" in window) {
+      void setExclusiveFullscreen(true);
+      setChromeHidden(true);
+    } else {
+      setFullscreen(Boolean(document.fullscreenElement));
+      setChromeHidden(Boolean(document.fullscreenElement));
+    }
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -221,7 +251,14 @@ export function PlayerApp() {
       </footer>
 
       {chromeHidden ? (
-        <div className="player-reveal-zone" onMouseEnter={() => setChromeHidden(false)} />
+        <div
+          className="player-reveal-zone"
+          onPointerMove={(event) => {
+            if (event.movementX !== 0 || event.movementY !== 0) {
+              setChromeHidden(false);
+            }
+          }}
+        />
       ) : null}
 
       {historyOpen ? (

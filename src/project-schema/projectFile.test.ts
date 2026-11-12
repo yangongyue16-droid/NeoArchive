@@ -20,6 +20,16 @@ describe("project files", () => {
       "文件不是有效的 NeoArchive schemaVersion 1 工程。",
     );
   });
+
+  it("preserves ultrawide stage and each explicit background fit on reopen", () => {
+    for (const backgroundFit of ["contain", "cover", "fill"] as const) {
+      const project = {
+        ...sampleProject,
+        stage: { aspect: "21:9" as const, width: 2560, height: 1080, backgroundFit },
+      };
+      expect(parseProjectFile(serializeProject(project)).stage).toEqual(project.stage);
+    }
+  });
 });
 
 describe("dialogue hold", () => {
