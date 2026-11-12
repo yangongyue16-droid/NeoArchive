@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent } from "rea
 import { resolveAudio } from "../assets/catalog";
 import { getUserAsset, importUserAsset, readUserAssetBlob } from "../assets/userAssets";
 import type { DialogueShowCue } from "../project-schema/types";
+import { voiceBoundaryPatch } from "./voiceSelection";
 
 type VoiceCuePanelProps = {
   cue: DialogueShowCue;
@@ -56,6 +57,8 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
   const detailWrapRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLAudioElement | null>(null);
   const previewUrlRef = useRef<string | null>(null);
+  const previewEndRef = useRef<number | null>(null);
+  const selectionEndRef = useRef(0);
   const peaksRef = useRef<Float32Array | null>(null);
   const transportRef = useRef<Transport>("idle");
   const playheadRef = useRef(0);
@@ -71,6 +74,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
   const startMs = cue.voiceStartMs ?? 0;
   const endMs = cue.voiceEndMs ?? durationMs;
   const hasCutEnd = cue.voiceEndMs !== undefined;
+  selectionEndRef.current = endMs;
   const windowRange = visibleWindow(focusMs, durationMs);
   const spanMs = Math.max(durationMs, 1);
   const startPct = (startMs / spanMs) * 100;
@@ -134,6 +138,8 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
       return;
     }
     let cancelled = false;
+    setDurationMs(0);
+    peaksRef.current = null;
     const context = new AudioContext();
     void (async () => {
       try {
@@ -229,6 +235,13 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
     const tick = () => {
       const audio = previewRef.current;
       if (audio) {
+        if (
+          audio.currentTime * 1000 >=
+          Math.min(previewEndRef.current ?? durationMs, selectionEndRef.current)
+        ) {
+          stopPreview();
+          return;
+        }
         setPlayhead(Math.round(audio.currentTime * 1000));
         paint(startMs, focusRef.current, playheadRef.current);
       }
@@ -236,7 +249,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [paint, startMs, transport]);
+  }, [durationMs, paint, startMs, stopPreview, transport]);
 
   const ensureAudio = async () => {
     if (previewRef.current) {
@@ -262,13 +275,25 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
       setError("试听失败");
       stopPreview();
     });
+    audio.addEventListener("timeupdate", () => {
+      if (
+        audio.currentTime * 1000 >=
+        Math.min(previewEndRef.current ?? durationMs, selectionEndRef.current)
+      ) {
+        stopPreview();
+      }
+    });
     return audio;
   };
 
   const playFrom = async (ms: number) => {
     try {
+      if (durationMs <= 0 || endMs <= startMs) {
+        return;
+      }
       const audio = await ensureAudio();
-      audio.currentTime = setPlayhead(ms) / 1000;
+      previewEndRef.current = endMs;
+      audio.currentTime = setPlayhead(Math.min(endMs - 1, Math.max(startMs, ms))) / 1000;
       await audio.play();
       setTransportState("playing");
       setError(null);
@@ -290,6 +315,19 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
       previewRef.current.currentTime = next / 1000;
     }
     paint(startMs, focusRef.current, next);
+  };
+
+  const updateBoundary = (boundary: "start" | "end", value: number, focus = false) => {
+    if (durationMs <= 0) {
+      return;
+    }
+    const patch = voiceBoundaryPatch(boundary, value, durationMs, startMs, cue.voiceEndMs);
+    onChange(patch);
+    const point = boundary === "start" ? patch.voiceStartMs! : patch.voiceEndMs!;
+    if (focus) {
+      setFocus(point);
+    }
+    seekPlayhead(point);
   };
 
   const timeFromOverviewX = (clientX: number) => {
@@ -353,7 +391,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
     drag.moved = true;
     const next = clampMs(timeFromDetailX(event.clientX), durationMs);
     seekPlayhead(next);
-    onChange({ voiceStartMs: next });
+    updateBoundary("start", next);
   };
 
   const onDetailPointerUp = (event: PointerEvent<HTMLDivElement>) => {
@@ -361,25 +399,15 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
     event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
-  // 拖终点：终点自由设置；若拖到起点之前，起点自动跟到同一点（后者说了算）。
+  // 边界交叉时，以正在编辑的边界为准，保留至少 1ms 选段。
   const updateEndFromX = (clientX: number) => {
     const value = clampMs(timeFromDetailX(clientX), durationMs);
-    const patch: { voiceEndMs: number; voiceStartMs?: number } = { voiceEndMs: value };
-    if (value < startMs) {
-      patch.voiceStartMs = value;
-    }
-    onChange(patch);
+    updateBoundary("end", value);
   };
 
-  // 拖起点：起点自由设置；若超过现有终点，终点自动跟到同一点。
   const updateStartFromX = (clientX: number) => {
     const value = clampMs(timeFromDetailX(clientX), durationMs);
-    const patch: { voiceStartMs: number; voiceEndMs?: number } = { voiceStartMs: value };
-    if (hasCutEnd && value > endMs) {
-      patch.voiceEndMs = value;
-    }
-    onChange(patch);
-    seekPlayhead(value);
+    updateBoundary("start", value);
   };
 
   const onStartPointPointerDown = (event: PointerEvent<HTMLSpanElement>) => {
@@ -477,6 +505,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
           {cue.voiceAssetRef ? (
             <>
               <button
+                disabled={durationMs <= 0}
                 onClick={() => void playFrom(transport === "paused" ? playheadMs : startMs)}
                 type="button"
               >
@@ -525,7 +554,9 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
           setBusy(true);
           setError(null);
           void importUserAsset(file, ["audio"])
-            .then((assetRef) => onChange({ voiceAssetRef: assetRef, voiceStartMs: 0 }))
+            .then((assetRef) =>
+              onChange({ voiceAssetRef: assetRef, voiceStartMs: 0, voiceEndMs: undefined }),
+            )
             .catch((reason: unknown) => {
               setError(reason instanceof Error ? reason.message : "语音导入失败");
             })
@@ -608,28 +639,89 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
         </div>
       </div>
       {cue.voiceAssetRef ? (
-        <div className="voice-submenu-actions">
-          <button onClick={() => onChange({ voiceStartMs: playheadMs })} type="button">
-            设为成片起点
-          </button>
-          <button
-            onClick={() => {
-              setFocus(0);
-              onChange({ voiceStartMs: 0 });
-            }}
-            type="button"
-          >
-            复位起点
-          </button>
-          <button onClick={() => onChange({ voiceEndMs: playheadMs })} type="button">
-            设为成片终点
-          </button>
-          {hasCutEnd ? (
-            <button onClick={() => onChange({ voiceEndMs: undefined })} type="button">
-              复位终点
+        <>
+          <div className="voice-selection-fields">
+            <label>
+              起点（ms）
+              <input
+                aria-label="语音起点（ms）"
+                type="number"
+                min={0}
+                max={Math.max(0, endMs - 1)}
+                step={10}
+                disabled={durationMs <= 0}
+                value={startMs}
+                onChange={(event) =>
+                  updateBoundary("start", event.currentTarget.valueAsNumber, true)
+                }
+              />
+            </label>
+            <label>
+              终点（ms）
+              <input
+                aria-label="语音终点（ms）"
+                type="number"
+                min={startMs + 1}
+                max={durationMs}
+                step={10}
+                disabled={durationMs <= 0}
+                value={endMs}
+                onChange={(event) => updateBoundary("end", event.currentTarget.valueAsNumber, true)}
+              />
+            </label>
+            <span role="status">
+              选段 {formatTime(Math.max(0, endMs - startMs))} ·{" "}
+              {transport === "playing" ? "试听中" : transport === "paused" ? "已暂停" : "就绪"}
+            </span>
+          </div>
+          <div className="voice-submenu-actions">
+            <button
+              disabled={durationMs <= 0}
+              onClick={() => updateBoundary("start", playheadMs, true)}
+              type="button"
+            >
+              设为成片起点
             </button>
-          ) : null}
-        </div>
+            <button
+              onClick={() => {
+                setFocus(0);
+                onChange({ voiceStartMs: 0 });
+              }}
+              type="button"
+            >
+              复位起点
+            </button>
+            <button
+              disabled={durationMs <= 0}
+              onClick={() => updateBoundary("end", playheadMs, true)}
+              type="button"
+            >
+              设为成片终点
+            </button>
+            {hasCutEnd ? (
+              <button onClick={() => onChange({ voiceEndMs: undefined })} type="button">
+                复位终点
+              </button>
+            ) : null}
+            <button
+              disabled={durationMs <= 0}
+              onClick={() => void playFrom(playheadMs)}
+              type="button"
+            >
+              从播放头试听
+            </button>
+            <button
+              disabled={durationMs <= 0}
+              onClick={() => void playFrom(Math.max(startMs, endMs - 800))}
+              type="button"
+            >
+              试听终点前 0.8 秒
+            </button>
+          </div>
+          <p className="voice-selection-help">
+            拖动起止把手或输入毫秒值精确选点；总览定位细分窗口。试听到所选终点自动停止。
+          </p>
+        </>
       ) : null}
       {error ? <p className="voice-error">{error}</p> : null}
     </div>

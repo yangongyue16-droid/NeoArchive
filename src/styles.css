@@ -1758,8 +1758,41 @@ h2 {
 
 .voice-submenu-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.voice-selection-fields {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.voice-selection-fields label {
+  display: grid;
+  gap: 4px;
+  color: var(--ink-3);
+  font-size: 12px;
+}
+
+.voice-selection-fields input {
+  width: 112px;
+  min-height: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 4px 8px;
+  color: var(--ink-1);
+  background: var(--bg);
+  font-variant-numeric: tabular-nums;
+}
+
+.voice-selection-fields > span,
+.voice-selection-help {
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .voice-submenu-actions button {
