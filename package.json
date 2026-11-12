@@ -16,6 +16,7 @@
     "build:desktop": "vp run build:sidecar && tauri build && node scripts/stage-release-internal.mjs",
     "preview": "vp preview",
     "test": "vp test",
+    "test:browser": "playwright test",
     "test:api": "uv run --project backend pytest backend/tests",
     "lint:api": "uv run --project backend ruff check backend/src backend/tests",
     "typecheck:api": "uv run --project backend pyright backend/src backend/tests",
@@ -39,6 +40,7 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
