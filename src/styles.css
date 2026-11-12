@@ -1209,6 +1209,28 @@ h2 {
   background: #000;
 }
 
+.audio-retry {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 12;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-1);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.audio-retry[data-channel="voice"] {
+  top: 58px;
+}
+
+.audio-retry[data-channel="sfx"] {
+  top: 100px;
+}
+
 .player-stage-wrap.stage-fit > .story-stage {
   width: min(100%, calc(100cqh * var(--stage-w) / var(--stage-h)));
   height: min(100%, calc(100cqw * var(--stage-h) / var(--stage-w)));

@@ -1,6 +1,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -62,33 +63,102 @@ function StoryAudio({
   onEnded?: (cueId?: string) => void;
 }) {
   const source = resolveAudio(audio.assetRef);
-  return source ? (
-    <audio
-      autoPlay
-      key={`${audio.channel}:${audio.cueId ?? ""}:${audio.assetRef}:${audio.startMs ?? 0}:${audio.endMs ?? 0}`}
-      loop={audio.loop}
-      onEnded={() => onEnded?.(audio.cueId)}
-      onLoadedMetadata={(event) => {
-        if ((audio.startMs ?? 0) > 0) {
-          event.currentTarget.currentTime = audio.startMs! / 1000;
+  const elementRef = useRef<HTMLAudioElement>(null);
+  const onEndedRef = useRef(onEnded);
+  onEndedRef.current = onEnded;
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const requestPlay = useCallback(() => {
+    const element = elementRef.current;
+    if (!element) {
+      return;
+    }
+    void element.play().then(
+      () => {
+        if (elementRef.current === element) {
+          setAutoplayBlocked(false);
         }
-      }}
-      onTimeUpdate={(event) => {
-        const element = event.currentTarget;
-        const durationMs = element.duration * 1000;
+      },
+      (error: unknown) => {
         if (
-          !audio.loop &&
-          durationMs > 0 &&
-          audio.endMs !== undefined &&
-          audio.endMs < durationMs - 50 &&
-          element.currentTime * 1000 >= audio.endMs
+          elementRef.current === element &&
+          error instanceof DOMException &&
+          error.name === "NotAllowedError"
         ) {
-          element.pause();
-          onEnded?.(audio.cueId);
+          setAutoplayBlocked(true);
         }
-      }}
-      src={source}
-    />
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element) {
+      return;
+    }
+    element.volume = Number.isFinite(audio.volume) ? Math.min(1, Math.max(0, audio.volume)) : 1;
+    let frame = 0;
+    let ended = false;
+    const finish = () => {
+      if (ended) {
+        return;
+      }
+      ended = true;
+      element.pause();
+      onEndedRef.current?.(audio.cueId);
+    };
+    const checkEnd = () => {
+      if (!audio.loop && audio.endMs !== undefined && element.currentTime * 1000 >= audio.endMs) {
+        finish();
+      }
+    };
+    const tick = () => {
+      checkEnd();
+      if (!ended) {
+        frame = requestAnimationFrame(tick);
+      }
+    };
+    element.addEventListener("ended", finish);
+    element.addEventListener("timeupdate", checkEnd);
+    requestPlay();
+    if (!audio.loop && audio.endMs !== undefined) {
+      frame = requestAnimationFrame(tick);
+    }
+    return () => {
+      cancelAnimationFrame(frame);
+      element.removeEventListener("ended", finish);
+      element.removeEventListener("timeupdate", checkEnd);
+    };
+  }, [audio, source, requestPlay]);
+
+  return source ? (
+    <>
+      <audio
+        autoPlay
+        ref={elementRef}
+        key={`${audio.channel}:${audio.cueId ?? ""}:${audio.assetRef}:${audio.startMs ?? 0}:${audio.endMs ?? 0}`}
+        loop={audio.loop}
+        onLoadedMetadata={(event) => {
+          if ((audio.startMs ?? 0) > 0) {
+            event.currentTarget.currentTime = audio.startMs! / 1000;
+          }
+        }}
+        src={source}
+      />
+      {autoplayBlocked ? (
+        <button
+          className="audio-retry"
+          data-channel={audio.channel}
+          onClick={(event) => {
+            event.stopPropagation();
+            requestPlay();
+          }}
+          type="button"
+        >
+          点击启用
+          {audio.channel === "bgm" ? "背景音乐" : audio.channel === "voice" ? "语音" : "音效"}
+        </button>
+      ) : null}
+    </>
   ) : null;
 }
 
