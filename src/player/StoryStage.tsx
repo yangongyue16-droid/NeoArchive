@@ -357,7 +357,7 @@ export function StoryStage({
           />
         ) : null,
       )}
-      {dialogue && !hideHud ? (
+      {dialogue && !hideHud && !playback.blank ? (
         <DialogueLayer
           dialogueBox={dialogueBox}
           layoutEdit={layoutEdit}
@@ -369,7 +369,7 @@ export function StoryStage({
           }
         />
       ) : null}
-      {textComplete && dialogue && !layoutEdit && !hideHud ? (
+      {textComplete && dialogue && !layoutEdit && !hideHud && !playback.blank ? (
         <span className="continue-indicator" aria-hidden="true" />
       ) : null}
       {playback.choices.length > 0 ? (
@@ -394,6 +394,7 @@ export function StoryStage({
           />
         </Suspense>
       ) : null}
+      {playback.blank ? <div className="stage-blank" aria-label="空白页" /> : null}
     </article>
   );
 }

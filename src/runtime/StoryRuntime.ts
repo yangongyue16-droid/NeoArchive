@@ -64,6 +64,7 @@ export type PlaybackStatus = "idle" | "playing" | "waiting_user" | "paused" | "c
 
 export type PlaybackState = {
   status: PlaybackStatus;
+  blank: boolean;
   sceneId: string | null;
   sceneTitle: string | null;
   currentCueIndex: number;
@@ -90,6 +91,7 @@ export type SaveSnapshot = {
 
 const initialState: PlaybackState = {
   status: "idle",
+  blank: false,
   sceneId: null,
   sceneTitle: null,
   currentCueIndex: 0,
@@ -443,7 +445,7 @@ export class StoryRuntime {
 
   private process(scene: Scene, startIndex: number): void {
     const cues = scene.cues;
-    let nextState: PlaybackState = { ...this.state, status: "playing" };
+    let nextState: PlaybackState = { ...this.state, status: "playing", blank: false };
 
     for (let index = startIndex; index < cues.length; index += 1) {
       const cue = cues[index];
@@ -625,6 +627,7 @@ export class StoryRuntime {
   }
 
   private applyCue(state: PlaybackState, cue: StoryCue): PlaybackState {
+    state = { ...state, blank: false };
     switch (cue.type) {
       case "background.set": {
         this.backgroundSequence += 1;
@@ -752,7 +755,15 @@ export class StoryRuntime {
           },
         };
       case "wait":
-        return state;
+        return cue.blank
+          ? withoutDialogueVoice({
+              ...state,
+              blank: true,
+              dialogue: null,
+              choices: [],
+              choicePrompt: null,
+            })
+          : state;
     }
   }
 

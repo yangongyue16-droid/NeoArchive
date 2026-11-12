@@ -516,13 +516,26 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
 
       {cue.type === "wait" ? (
         <>
-          <label>
-            <span>等待时间（ms）</span>
+          <label className="checkbox-field standalone-checkbox">
             <input
+              checked={cue.blank ?? false}
+              onChange={(event) => onUpdate({ blank: event.currentTarget.checked }, "blank")}
+              type="checkbox"
+            />
+            <span>空白页（黑屏）</span>
+          </label>
+          <p className="field-help">
+            在「+ 等待」中设置。黑屏期间保留舞台与背景音乐，结束后恢复画面。
+          </p>
+          <label>
+            <span>{cue.blank ? "空白页持续时间（ms）" : "等待时间（ms）"}</span>
+            <input
+              disabled={cue.waitForAdvance ?? false}
               min={0}
+              step={100}
               onChange={(event) =>
                 onUpdate(
-                  { durationMs: Math.max(0, Number(event.currentTarget.value)) },
+                  { durationMs: Math.max(0, Math.round(Number(event.currentTarget.value))) },
                   "durationMs",
                 )
               }

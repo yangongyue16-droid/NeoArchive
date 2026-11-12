@@ -115,6 +115,7 @@ class WaitCue(BaseCue):
     type: Literal["wait"]
     duration_ms: int | None = Field(default=None, ge=0)
     wait_for_advance: bool = False
+    blank: bool = False
 
 
 class TimeWheelConfig(SchemaModel):

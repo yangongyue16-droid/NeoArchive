@@ -29,6 +29,95 @@ describe("StoryRuntime", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it("shows a blank page for its duration, suppresses voice and dialogue, then restores the stage", () => {
+    const project = structuredClone(sampleProject);
+    project.openingFadeMs = 0;
+    project.chapters[0].scenes = [
+      {
+        id: project.entrySceneId,
+        title: "Blank page",
+        kind: "dialogue",
+        cues: [
+          {
+            id: "bg",
+            type: "background.set",
+            atMs: 0,
+            assetRef: "background/classroom",
+            transitionMs: 0,
+          },
+          {
+            id: "music",
+            type: "audio.play",
+            atMs: 0,
+            assetRef: "music",
+            channel: "bgm",
+            loop: true,
+          },
+          {
+            id: "before",
+            type: "dialogue.show",
+            atMs: 0,
+            speaker: "A",
+            text: "Before",
+            waitForAdvance: true,
+            voiceAssetRef: "voice",
+          },
+          { id: "blank", type: "wait", atMs: 0, blank: true, durationMs: 1750 },
+          {
+            id: "after",
+            type: "dialogue.show",
+            atMs: 0,
+            speaker: "A",
+            text: "After",
+            waitForAdvance: true,
+          },
+        ],
+      },
+    ];
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+    runtime.advance();
+    expect(runtime.getSnapshot()).toMatchObject({
+      blank: true,
+      dialogue: null,
+      backgroundRef: "background/classroom",
+      status: "playing",
+    });
+    expect(runtime.getSnapshot().audio.voice).toBeUndefined();
+    expect(runtime.getSnapshot().audio.bgm?.assetRef).toBe("music");
+    runtime.advance();
+    vi.advanceTimersByTime(1749);
+    expect(runtime.getSnapshot().blank).toBe(true);
+    vi.advanceTimersByTime(1);
+    expect(runtime.getSnapshot()).toMatchObject({
+      blank: false,
+      dialogue: { text: "After" },
+      status: "waiting_user",
+      backgroundRef: "background/classroom",
+    });
+  });
+
+  it("keeps click-to-continue blank pages until advanced, and skips zero-duration pages", () => {
+    const project = structuredClone(sampleProject);
+    project.chapters[0].scenes = [
+      {
+        id: project.entrySceneId,
+        title: "Blank",
+        kind: "direction",
+        cues: [
+          { id: "click", type: "wait", atMs: 0, blank: true, waitForAdvance: true },
+          { id: "zero", type: "wait", atMs: 0, blank: true, durationMs: 0 },
+        ],
+      },
+    ];
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+    vi.runAllTimers();
+    expect(runtime.getSnapshot()).toMatchObject({ blank: true, status: "waiting_user" });
+    runtime.advance();
+    expect(runtime.getSnapshot().status).toBe("completed");
+  });
+
   it("projects the first scene until the dialogue boundary", () => {
     const runtime = new StoryRuntime(sampleProject);
 

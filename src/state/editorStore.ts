@@ -33,6 +33,7 @@ export type EditableCuePatch = Partial<{
   characterRef: string;
   delayMs: number;
   durationMs: number;
+  blank: boolean;
   enterDurationMs: number;
   loop: boolean;
   speaker: string;

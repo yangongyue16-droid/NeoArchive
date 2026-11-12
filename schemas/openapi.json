@@ -1564,6 +1564,11 @@
             "type": "boolean",
             "title": "Waitforadvance",
             "default": false
+          },
+          "blank": {
+            "type": "boolean",
+            "title": "Blank",
+            "default": false
           }
         },
         "additionalProperties": false,

@@ -1202,6 +1202,13 @@ h2 {
   max-height: 100%;
 }
 
+.stage-blank {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background: #000;
+}
+
 .player-stage-wrap.stage-fit > .story-stage {
   width: min(100%, calc(100cqh * var(--stage-w) / var(--stage-h)));
   height: min(100%, calc(100cqw * var(--stage-h) / var(--stage-w)));

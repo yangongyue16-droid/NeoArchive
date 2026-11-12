@@ -7,6 +7,20 @@ from neoarchive.domain import StoryProject
 from neoarchive.persistence import ProjectRepository, ProjectRevisionConflictError
 
 
+def test_timed_blank_page_survives_repository_save(tmp_path: Path) -> None:
+    project = make_project("空白页")
+    payload = project.model_dump(mode="json")
+    payload["chapters"][0]["scenes"][0]["cues"] = [
+        {"id": "blank", "type": "wait", "atMs": 0, "blank": True, "durationMs": 1750}
+    ]
+    repository = ProjectRepository(tmp_path / "projects")
+    repository.save(StoryProject.model_validate(payload))
+    restored = repository.get(project.project_id).project.model_dump(mode="json")
+    cue = restored["chapters"][0]["scenes"][0]["cues"][0]
+    assert cue["blank"] is True
+    assert cue["durationMs"] == 1750
+
+
 def make_project(title: str) -> StoryProject:
     return StoryProject.model_validate(
         {

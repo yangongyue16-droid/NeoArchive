@@ -225,6 +225,7 @@ export interface WaitCue {
   type: 'wait';
   durationMs?: number | null;
   waitForAdvance?: boolean;
+  blank?: boolean;
 }
 
 export interface Scene {

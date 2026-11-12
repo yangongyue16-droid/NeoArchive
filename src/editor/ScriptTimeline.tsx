@@ -48,7 +48,7 @@ function cueSummary(cue: StoryCue): string {
     case "choice.show":
       return `${cue.prompt ?? "选择"} · ${cue.options.length} 个选项`;
     case "wait":
-      return cue.waitForAdvance ? "等待玩家继续" : `等待 ${cue.durationMs ?? 0}ms`;
+      return `${cue.blank ? "空白页 · " : ""}${cue.waitForAdvance ? "等待玩家继续" : `等待 ${cue.durationMs ?? 0}ms`}`;
     case "transition.play":
       return `${cue.preset} · ${cue.durationMs}ms`;
   }

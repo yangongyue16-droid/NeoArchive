@@ -92,6 +92,8 @@ export type WaitCue = BaseCue & {
   type: "wait";
   durationMs?: number;
   waitForAdvance?: boolean;
+  /** 等待期间显示纯黑空白页；缺省保持现有画面。 */
+  blank?: boolean;
 };
 
 export type StageTransitionPreset =

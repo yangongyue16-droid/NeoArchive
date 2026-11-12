@@ -30,6 +30,19 @@ describe("project files", () => {
       expect(parseProjectFile(serializeProject(project)).stage).toEqual(project.stage);
     }
   });
+
+  it("round-trips a timed blank page", () => {
+    const project = structuredClone(sampleProject);
+    project.chapters[0].scenes[0].cues.push({
+      id: "blank",
+      type: "wait",
+      atMs: 0,
+      blank: true,
+      durationMs: 1750,
+      waitForAdvance: false,
+    });
+    expect(parseProjectFile(serializeProject(project))).toEqual(project);
+  });
 });
 
 describe("dialogue hold", () => {
