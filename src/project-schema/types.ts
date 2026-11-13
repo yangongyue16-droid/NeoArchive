@@ -69,6 +69,9 @@ export type AudioPlayCue = BaseCue & {
   channel: "bgm" | "voice" | "sfx";
   loop?: boolean;
   volume?: number;
+  /** 音乐/音效选段起止毫秒；循环时只重复该区间。 */
+  startMs?: number;
+  endMs?: number;
 };
 
 export type AudioStopCue = BaseCue & {

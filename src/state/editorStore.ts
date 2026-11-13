@@ -52,6 +52,8 @@ export type EditableCuePatch = Partial<{
   holdAfterMs?: number;
   voiceHoldMs?: number;
   advanceWhen?: import("../project-schema/types").AdvanceWhen;
+  startMs?: number;
+  endMs?: number;
   volume: number;
   waitForAdvance: boolean;
   waitForMediaEnd?: boolean;
@@ -401,6 +403,14 @@ export const useEditorStore = create<EditorState>((set) => ({
         );
       }
       Object.assign(cue, patch);
+      if (cue.type === "audio.play") {
+        if ("startMs" in patch && patch.startMs === undefined) {
+          delete cue.startMs;
+        }
+        if ("endMs" in patch && patch.endMs === undefined) {
+          delete cue.endMs;
+        }
+      }
       if (cue.type === "dialogue.show") {
         if ("voiceAssetRef" in patch && patch.voiceAssetRef === undefined) {
           delete cue.voiceAssetRef;

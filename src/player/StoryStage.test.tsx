@@ -32,6 +32,46 @@ afterEach(() => {
 });
 
 describe("story audio playback", () => {
+  it("loops only the selected music region without ending the cue", () => {
+    const audio: RuntimeAudio = {
+      assetRef: "/music.wav",
+      channel: "bgm",
+      loop: true,
+      volume: 0.4,
+      startMs: 500,
+      endMs: 1500,
+    };
+    const { container } = render(<StoryStage playback={playbackWith(audio)} />);
+    const element = container.querySelector("audio")!;
+    expect(element.loop).toBe(false);
+    fireEvent.loadedMetadata(element);
+    expect(element.currentTime).toBe(0.5);
+    element.currentTime = 1.5;
+    fireEvent.timeUpdate(element);
+    expect(element.currentTime).toBe(0.5);
+    element.currentTime = 1.5;
+    fireEvent.ended(element);
+    expect(element.currentTime).toBe(0.5);
+  });
+
+  it("stops non-looping music at its selected end", () => {
+    const audio: RuntimeAudio = {
+      assetRef: "/music.wav",
+      channel: "bgm",
+      loop: false,
+      volume: 0.4,
+      startMs: 500,
+      endMs: 1500,
+    };
+    const { container } = render(<StoryStage playback={playbackWith(audio)} />);
+    const element = container.querySelector("audio")!;
+    const pause = vi.spyOn(element, "pause");
+    element.currentTime = 1.5;
+    fireEvent.timeUpdate(element);
+    expect(pause).toHaveBeenCalled();
+    expect(element.currentTime).toBe(1.5);
+  });
+
   it("offers a user gesture retry when browser autoplay is blocked", async () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, "play");
     play.mockRejectedValueOnce(new DOMException("Gesture required", "NotAllowedError"));

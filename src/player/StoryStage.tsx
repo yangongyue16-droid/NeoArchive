@@ -63,6 +63,7 @@ function StoryAudio({
   onEnded?: (cueId?: string) => void;
 }) {
   const source = resolveAudio(audio.assetRef);
+  const hasSelection = audio.startMs !== undefined || audio.endMs !== undefined;
   const elementRef = useRef<HTMLAudioElement>(null);
   const onEndedRef = useRef(onEnded);
   onEndedRef.current = onEnded;
@@ -106,8 +107,34 @@ function StoryAudio({
       element.pause();
       onEndedRef.current?.(audio.cueId);
     };
+    const selectionBounds = () => {
+      const duration = Number.isFinite(element.duration) ? element.duration : Infinity;
+      const rawStart = Number.isFinite(audio.startMs) ? Math.max(0, audio.startMs! / 1000) : 0;
+      const start = Math.min(rawStart, Math.max(0, duration - 0.001));
+      const end = Number.isFinite(audio.endMs)
+        ? Math.min(duration, Math.max(start + 0.001, audio.endMs! / 1000))
+        : duration;
+      return { start, end };
+    };
     const checkEnd = () => {
-      if (!audio.loop && audio.endMs !== undefined && element.currentTime * 1000 >= audio.endMs) {
+      const { start, end } = selectionBounds();
+      if (element.currentTime < end) {
+        return;
+      }
+      if (audio.loop) {
+        element.currentTime = start;
+        if (element.paused) {
+          requestPlay();
+        }
+      } else {
+        finish();
+      }
+    };
+    const handleEnded = () => {
+      if (audio.loop && hasSelection) {
+        element.currentTime = selectionBounds().start;
+        requestPlay();
+      } else {
         finish();
       }
     };
@@ -117,29 +144,32 @@ function StoryAudio({
         frame = requestAnimationFrame(tick);
       }
     };
-    element.addEventListener("ended", finish);
+    element.addEventListener("ended", handleEnded);
     element.addEventListener("timeupdate", checkEnd);
     requestPlay();
-    if (!audio.loop && audio.endMs !== undefined) {
+    if (hasSelection) {
       frame = requestAnimationFrame(tick);
     }
     return () => {
       cancelAnimationFrame(frame);
-      element.removeEventListener("ended", finish);
+      element.removeEventListener("ended", handleEnded);
       element.removeEventListener("timeupdate", checkEnd);
     };
-  }, [audio, source, requestPlay]);
+  }, [audio, hasSelection, source, requestPlay]);
 
   return source ? (
     <>
       <audio
+        data-channel={audio.channel}
         autoPlay
         ref={elementRef}
         key={`${audio.channel}:${audio.cueId ?? ""}:${audio.assetRef}:${audio.startMs ?? 0}:${audio.endMs ?? 0}`}
-        loop={audio.loop}
+        loop={audio.loop && !hasSelection}
         onLoadedMetadata={(event) => {
           if ((audio.startMs ?? 0) > 0) {
-            event.currentTarget.currentTime = audio.startMs! / 1000;
+            const element = event.currentTarget;
+            const duration = Number.isFinite(element.duration) ? element.duration : Infinity;
+            element.currentTime = Math.min(audio.startMs! / 1000, Math.max(0, duration - 0.001));
           }
         }}
         src={source}

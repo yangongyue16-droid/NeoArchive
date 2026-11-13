@@ -5,10 +5,12 @@ import type { DialogueShowCue } from "../project-schema/types";
 import { voiceBoundaryPatch } from "./voiceSelection";
 
 type VoiceCuePanelProps = {
-  cue: DialogueShowCue;
+  cue: Pick<DialogueShowCue, "voiceAssetRef" | "voiceStartMs" | "voiceEndMs">;
+  audioLabel?: string;
+  previewVolume?: number;
   expanded: boolean;
   selected: boolean;
-  onToggle: () => void;
+  onToggle?: () => void;
   onChange: (patch: { voiceAssetRef?: string; voiceStartMs?: number; voiceEndMs?: number }) => void;
 };
 
@@ -49,7 +51,15 @@ export function VoiceStatusButton({
   );
 }
 
-export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: VoiceCuePanelProps) {
+export function VoiceCuePanel({
+  cue,
+  expanded,
+  selected,
+  onToggle,
+  onChange,
+  audioLabel = "语音",
+  previewVolume = 1,
+}: VoiceCuePanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const overviewRef = useRef<HTMLCanvasElement>(null);
   const detailRef = useRef<HTMLCanvasElement>(null);
@@ -147,7 +157,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
           (await readUserAssetBlob(cue.voiceAssetRef!)) ??
           (source ? await fetch(source).then((item) => item.blob()) : null);
         if (!blob) {
-          throw new Error("找不到语音文件");
+          throw new Error("找不到音频文件");
         }
         const decoded = await context.decodeAudioData(await blob.arrayBuffer());
         if (cancelled) {
@@ -256,13 +266,13 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
       return previewRef.current;
     }
     if (!cue.voiceAssetRef) {
-      throw new Error("找不到语音文件");
+      throw new Error("找不到音频文件");
     }
     const blob =
       (await readUserAssetBlob(cue.voiceAssetRef)) ??
       (source ? await fetch(source).then((item) => item.blob()) : null);
     if (!blob) {
-      throw new Error("找不到语音文件");
+      throw new Error("找不到音频文件");
     }
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
@@ -294,6 +304,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
       const audio = await ensureAudio();
       previewEndRef.current = endMs;
       audio.currentTime = setPlayhead(Math.min(endMs - 1, Math.max(startMs, ms))) / 1000;
+      audio.volume = Math.min(1, Math.max(0, previewVolume));
       await audio.play();
       setTransportState("playing");
       setError(null);
@@ -497,10 +508,10 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
   return (
     <div className="voice-submenu" onClick={(event) => event.stopPropagation()}>
       <div className="voice-submenu-head">
-        <strong>{asset?.name ?? "未选择音频"}</strong>
+        <strong>{asset?.name ?? (cue.voiceAssetRef ? audioLabel + "素材" : "未选择音频")}</strong>
         <div className="voice-submenu-actions">
           <button onClick={() => inputRef.current?.click()} type="button">
-            {busy ? "导入中…" : "选择语音"}
+            {busy ? "导入中…" : "选择" + audioLabel}
           </button>
           {cue.voiceAssetRef ? (
             <>
@@ -537,9 +548,11 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
               清除
             </button>
           ) : null}
-          <button onClick={onToggle} type="button">
-            收起
-          </button>
+          {onToggle ? (
+            <button onClick={onToggle} type="button">
+              收起
+            </button>
+          ) : null}
         </div>
       </div>
       <input
@@ -558,7 +571,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
               onChange({ voiceAssetRef: assetRef, voiceStartMs: 0, voiceEndMs: undefined }),
             )
             .catch((reason: unknown) => {
-              setError(reason instanceof Error ? reason.message : "语音导入失败");
+              setError(reason instanceof Error ? reason.message : "音频导入失败");
             })
             .finally(() => setBusy(false));
         }}
@@ -644,7 +657,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
             <label>
               起点（ms）
               <input
-                aria-label="语音起点（ms）"
+                aria-label={audioLabel + "起点（ms）"}
                 type="number"
                 min={0}
                 max={Math.max(0, endMs - 1)}
@@ -659,7 +672,7 @@ export function VoiceCuePanel({ cue, expanded, selected, onToggle, onChange }: V
             <label>
               终点（ms）
               <input
-                aria-label="语音终点（ms）"
+                aria-label={audioLabel + "终点（ms）"}
                 type="number"
                 min={startMs + 1}
                 max={durationMs}

@@ -4,6 +4,7 @@ import { getUserAsset, getUserAssetSnapshot, subscribeUserAssets } from "../asse
 import type { CharacterTransform, StoryCue, TimeWheelConfig } from "../project-schema/types";
 import type { EditableCuePatch } from "../state/editorStore";
 import { transitionPresets } from "../transitions/presets";
+import { AudioCuePanel } from "./AudioCuePanel";
 import { LocalAssetPicker } from "./LocalAssetPicker";
 
 type CueInspectorProps = {
@@ -457,20 +458,16 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
           <label>
             <span>素材引用</span>
             <input
-              onChange={(event) => onUpdate({ assetRef: event.currentTarget.value }, "assetRef")}
+              onChange={(event) =>
+                onUpdate(
+                  { assetRef: event.currentTarget.value, startMs: 0, endMs: undefined },
+                  "assetRef",
+                )
+              }
               placeholder="选择本地音频，或填写已有引用"
               value={cue.assetRef.startsWith("user:") ? "" : cue.assetRef}
             />
           </label>
-          <LocalAssetPicker
-            accept="audio/*,.aac,.flac,.m4a,.mp3,.ogg,.opus,.wav"
-            allowed={["audio"]}
-            buttonLabel={cue.channel === "voice" ? "选择本地语音" : "选择本地音频"}
-            onImported={(assetRef) => onUpdate({ assetRef }, "assetRef")}
-          />
-          {getUserAsset(cue.assetRef) ? (
-            <p className="asset-file-name">已选：{getUserAsset(cue.assetRef)?.name}</p>
-          ) : null}
           <div className="field-row">
             <label>
               <span>通道</span>
@@ -509,8 +506,9 @@ export function CueInspector({ cue, onUpdate, voiceHoldDefaultMs }: CueInspector
               onChange={(event) => onUpdate({ loop: event.currentTarget.checked }, "loop")}
               type="checkbox"
             />
-            <span>循环播放</span>
+            <span>循环播放所选区间</span>
           </label>
+          <AudioCuePanel cue={cue} key={cue.id} onUpdate={onUpdate} />
         </>
       ) : null}
 

@@ -92,6 +92,8 @@ class AudioPlayCue(BaseCue):
     channel: Literal["bgm", "voice", "sfx"]
     loop: bool = False
     volume: float = Field(default=1, ge=0, le=1)
+    start_ms: int | None = Field(default=None, ge=0)
+    end_ms: int | None = Field(default=None, gt=0)
 
 
 class AudioStopCue(BaseCue):

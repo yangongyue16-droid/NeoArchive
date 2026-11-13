@@ -41,6 +41,8 @@ export interface AudioPlayCue {
      * @maximum 1
      */
   volume?: number;
+  startMs?: number | null;
+  endMs?: number | null;
 }
 
 export type AudioStopCueChannel = typeof AudioStopCueChannel[keyof typeof AudioStopCueChannel];

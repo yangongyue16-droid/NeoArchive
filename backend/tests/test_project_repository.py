@@ -21,6 +21,29 @@ def test_timed_blank_page_survives_repository_save(tmp_path: Path) -> None:
     assert cue["durationMs"] == 1750
 
 
+def test_music_selection_survives_repository_save(tmp_path: Path) -> None:
+    payload = make_project("音乐选区").model_dump(mode="json")
+    payload["chapters"][0]["scenes"][0]["cues"] = [
+        {
+            "id": "music",
+            "type": "audio.play",
+            "atMs": 0,
+            "assetRef": "music",
+            "channel": "bgm",
+            "loop": True,
+            "startMs": 1000,
+            "endMs": 2800,
+        }
+    ]
+    repository = ProjectRepository(tmp_path / "projects")
+    repository.save(StoryProject.model_validate(payload))
+    restored = repository.get(payload["projectId"]).project.model_dump(mode="json")
+    cue = restored["chapters"][0]["scenes"][0]["cues"][0]
+    assert cue["startMs"] == 1000
+    assert cue["endMs"] == 2800
+    assert cue["loop"] is True
+
+
 def make_project(title: str) -> StoryProject:
     return StoryProject.model_validate(
         {

@@ -733,6 +733,8 @@ export class StoryRuntime {
               channel: cue.channel,
               loop: cue.loop ?? false,
               volume: cue.volume ?? 1,
+              startMs: cue.startMs,
+              endMs: cue.endMs,
             },
           },
         };

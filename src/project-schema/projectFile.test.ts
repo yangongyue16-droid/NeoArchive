@@ -31,6 +31,21 @@ describe("project files", () => {
     }
   });
 
+  it("round-trips music selection and loop settings", () => {
+    const project = structuredClone(sampleProject);
+    project.chapters[0].scenes[0].cues.push({
+      id: "music-selection",
+      type: "audio.play",
+      atMs: 0,
+      assetRef: "music",
+      channel: "bgm",
+      loop: true,
+      startMs: 1000,
+      endMs: 2800,
+    });
+    expect(parseProjectFile(serializeProject(project))).toEqual(project);
+  });
+
   it("round-trips a timed blank page", () => {
     const project = structuredClone(sampleProject);
     project.chapters[0].scenes[0].cues.push({

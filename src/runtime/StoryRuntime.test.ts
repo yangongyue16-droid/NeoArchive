@@ -29,6 +29,30 @@ describe("StoryRuntime", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it("carries music selection boundaries into playback", () => {
+    const project = structuredClone(sampleProject);
+    project.chapters[0].scenes[0].cues = [
+      {
+        id: "music",
+        type: "audio.play",
+        atMs: 0,
+        assetRef: "music",
+        channel: "bgm",
+        loop: true,
+        startMs: 1000,
+        endMs: 2800,
+      },
+      { id: "hold", type: "wait", atMs: 0, waitForAdvance: true },
+    ];
+    const runtime = new StoryRuntime(project);
+    runtime.start();
+    expect(runtime.getSnapshot().audio.bgm).toMatchObject({
+      startMs: 1000,
+      endMs: 2800,
+      loop: true,
+    });
+  });
+
   it("shows a blank page for its duration, suppresses voice and dialogue, then restores the stage", () => {
     const project = structuredClone(sampleProject);
     project.openingFadeMs = 0;
